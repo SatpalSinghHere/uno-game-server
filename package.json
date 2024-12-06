@@ -1,0 +1,22 @@
+{
+  "name": "uno-game-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/main.js",
+    "build" : "tsc -p",
+    "dev": " tsc-watch --onSuccess \"node dist/index.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "tsc-watch": "^6.2.1",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.8.1"
+  }
+}
