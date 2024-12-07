@@ -28,7 +28,7 @@ class SocketService {
             this.players.push(socket.id)
             io.emit("Online Players", this.players)
 
-            const card = {color: "#D32F2F", value: 3}
+            const card = {color: "#D32F2F", value: '3'}
             io.emit("New Central Card", JSON.stringify(card))
 
             socket.on("Start Game", ()=>{
