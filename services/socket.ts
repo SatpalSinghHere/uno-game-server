@@ -25,6 +25,11 @@ class SocketService {
         io.on("connect", (socket) => {
             console.log("New connection: ", socket.id)
 
+            socket.on('join room', (room) => {
+                console.log("Joined room: ", room)
+                socket.join(room)
+            })
+
             this.players.push(socket.id)
             io.emit("Online Players", this.players)
 
