@@ -36,8 +36,8 @@ class SocketService {
             const card = {color: "#D32F2F", value: '3'}
             io.emit("New Central Card", JSON.stringify(card))
 
-            socket.on("Start Game", ()=>{
-                io.emit("Start Game")
+            socket.on("Start Game", (roomId : string)=>{
+                io.emit("Start Game", roomId)
             })
             
             socket.on("New Central Card", (data) => {
