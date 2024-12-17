@@ -1,4 +1,9 @@
 import { Server } from "socket.io";
+import { Card, cardList } from "../utils/cardObjects";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { connect } from "http2";
+
+const prisma = new PrismaClient()
 
 
 class SocketService {
@@ -25,9 +30,41 @@ class SocketService {
         io.on("connect", (socket) => {
             console.log("New connection: ", socket.id)
 
-            socket.on('join room', (room) => {
-                console.log("Joined room: ", room)
-                socket.join(room)
+            socket.on('join room', async (roomId : string, playerName : string, playerEmail : string,  deck : Card[] ) => {
+                console.log("Joined room: ", roomId)
+                socket.join(roomId)
+                let room = await prisma.room.findUnique({
+                    where: {
+                        id: roomId
+                    }
+                })
+
+                if(!room){
+                    room = await prisma.room.create({
+                        data:{
+                            id: roomId,
+                            clockwise: true,
+                            whoseTurn: 0,
+                            discardCard: {color: cardList[12].color, value : '7'}
+                        }
+                    })
+                }
+                
+                const recDeck : Array<any> = deck
+
+                const player = await prisma.player.create({
+                    data: {
+                        playerName: playerName,
+                        email: playerEmail,
+                        roomId: room.id,
+                        socketId: socket.id,
+                        deck: recDeck,
+                        
+                    },
+                    include: {
+                        room: true
+                    }
+                })
             })
 
             this.players.push(socket.id)
@@ -36,7 +73,8 @@ class SocketService {
             const card = {color: "#D32F2F", value: '3'}
             io.emit("New Central Card", JSON.stringify(card))
 
-            socket.on("Start Game", (roomId : string)=>{
+            socket.on("Start Game", (roomId)=>{
+                
                 io.emit("Start Game", roomId)
             })
             
