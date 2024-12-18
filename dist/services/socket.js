@@ -32,15 +32,16 @@ class SocketService {
             socket.on('join room', (roomId, playerName, playerEmail, deck) => __awaiter(this, void 0, void 0, function* () {
                 console.log("Joined room: ", roomId);
                 socket.join(roomId);
+                console.log('player information : ', playerName, playerEmail, deck);
                 let room = yield prisma.room.findUnique({
                     where: {
-                        roomId: roomId
+                        id: roomId
                     }
                 });
                 if (!room) {
                     room = yield prisma.room.create({
                         data: {
-                            roomId: roomId,
+                            id: roomId,
                             clockwise: true,
                             whoseTurn: 0,
                             discardCard: { color: cardObjects_1.cardList[12].color, value: '7' }
@@ -48,18 +49,36 @@ class SocketService {
                     });
                 }
                 const recDeck = deck;
-                const player = yield prisma.player.create({
-                    data: {
-                        playerName: playerName,
-                        email: playerEmail,
-                        roomId: roomId,
-                        socketId: socket.id,
-                        deck: recDeck,
-                    },
-                    include: {
-                        room: true
+                let player;
+                try {
+                    player = yield prisma.player.create({
+                        data: {
+                            playerName: playerName,
+                            email: playerEmail,
+                            roomId: room.id,
+                            socketId: socket.id,
+                            deck: recDeck,
+                            // room : { connect : { id : room.id } }
+                        },
+                        include: {
+                            room: true
+                        }
+                    });
+                }
+                catch (error) {
+                    if (error.code === 'P2002') {
+                        // Handle unique constraint violation
+                        console.log(`Room with ID ${roomId} already created by another process.`);
+                        room = yield prisma.room.findUnique({
+                            where: {
+                                id: roomId,
+                            },
+                        });
                     }
-                });
+                    else {
+                        throw error; // Rethrow other unexpected errors
+                    }
+                }
             }));
             this.players.push(socket.id);
             io.emit("Online Players", this.players);

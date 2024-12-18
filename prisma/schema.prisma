@@ -24,10 +24,10 @@ model Room {
 }
 
 model Player {  
-  roomId      String
+  roomId      String    
   playerName  String
-  socketId    String    @unique
+  socketId    String    @unique @id
   email       String    @unique
   deck        Json
-  room        Room      @relation("RoomPlayers", fields: [roomId], references: [id])
+  room        Room?      @relation("RoomPlayers", fields: [roomId], references: [id])
 }
