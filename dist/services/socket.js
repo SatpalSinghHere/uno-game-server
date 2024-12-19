@@ -91,11 +91,40 @@ class SocketService {
                 console.log("New Central Card: ", data);
                 io.emit("New Central Card", data);
             });
-            socket.on("disconnect", () => {
+            socket.on("disconnect", () => __awaiter(this, void 0, void 0, function* () {
                 console.log("Disconnected: ", socket.id);
                 this.players = this.players.filter(player => player !== socket.id);
                 io.emit("Online Players", this.players);
-            });
+                const player = yield prisma.player.findUnique({
+                    where: {
+                        socketId: socket.id
+                    }
+                });
+                let roomId;
+                if (player) {
+                    roomId = player.roomId;
+                    yield prisma.player.delete({
+                        where: {
+                            socketId: player.socketId
+                        }
+                    });
+                }
+                const room = prisma.room.findUnique({
+                    where: {
+                        id: roomId
+                    }
+                });
+                if (room) {
+                    const playerCount = room.players.length;
+                    if (playerCount === 0) {
+                        yield prisma.room.delete({
+                            where: {
+                                id: roomId
+                            }
+                        });
+                    }
+                }
+            }));
         });
     }
     get io() {

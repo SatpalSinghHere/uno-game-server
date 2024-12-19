@@ -105,10 +105,42 @@ class SocketService {
             })
 
 
-            socket.on("disconnect", () => {
+            socket.on("disconnect", async() => {
                 console.log("Disconnected: ", socket.id)
                 this.players = this.players.filter(player => player !== socket.id)
                 io.emit("Online Players", this.players)
+
+                const player = await prisma.player.findUnique({
+                    where: {
+                        socketId: socket.id
+                    }
+                })
+                let roomId
+                if(player){
+                    roomId = player.roomId
+                    await prisma.player.delete({
+                        where: {
+                            socketId: player.socketId
+                        }
+                    })
+                }
+
+                const room = prisma.room.findUnique({
+                    where: {
+                        id: roomId
+                    }
+                })
+
+                if(room){
+                    const playerCount = room.players.length
+                    if(playerCount === 0){
+                        await prisma.room.delete({
+                            where: {
+                                id: roomId
+                            }
+                        })
+                    }
+                }
             })
         })
     }

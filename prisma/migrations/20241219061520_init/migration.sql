@@ -16,7 +16,9 @@ CREATE TABLE "Player" (
     "playerName" TEXT NOT NULL,
     "socketId" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "deck" JSONB NOT NULL
+    "deck" JSONB NOT NULL,
+
+    CONSTRAINT "Player_pkey" PRIMARY KEY ("socketId")
 );
 
 -- CreateIndex
