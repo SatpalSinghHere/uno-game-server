@@ -29,11 +29,13 @@ class SocketService {
         console.log("Init Socket listeners...");
         io.on("connect", (socket) => {
             console.log("New connection: ", socket.id);
-            const handleWaitingRoom = (username) => {
+            const handleWaitingRoom = (username, roomId) => {
                 this.players.push(username);
+                console.log(socket.id, ' Joined Room : ', roomId);
+                socket.join(roomId);
                 console.log('new player waiting');
-                io.emit('players waiting', this.players);
-                socket.off('coming to waiting room', handleWaitingRoom); // Remove the specific listener
+                io.in('roomId').emit('players waiting', this.players);
+                socket.off('coming to waiting room', handleWaitingRoom);
             };
             socket.on('coming to waiting room', handleWaitingRoom);
             socket.on('join room', (roomId, playerName, playerEmail, deck) => __awaiter(this, void 0, void 0, function* () {
