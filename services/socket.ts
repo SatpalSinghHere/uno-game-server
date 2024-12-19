@@ -35,21 +35,29 @@ class SocketService {
                 socket.join(roomId)
 
                 console.log('player information : ', playerName, playerEmail, deck)
-                let room = await prisma.room.findUnique({
-                    where: {
-                        id: roomId
-                    }
-                })
-
-                if (!room) {
+                let room
+                try{
                     room = await prisma.room.create({
-                        data: {
+                        data:{
                             id: roomId,
                             clockwise: true,
                             whoseTurn: 0,
-                            discardCard: { color: cardList[12].color, value: '7' }
+                            discardCard: {color: cardList[12].color, value: '7'},
                         }
                     })
+                }
+                catch(error: any){
+                    if(error.code == 'P2002'){
+                        console.log('DUPLICATE ROOM ENTRY')
+                        room = await prisma.room.findUnique({
+                            where: {
+                                id: roomId
+                            }
+                        })
+                    }
+                    else{
+                        throw error
+                    }
                 }
 
                 const recDeck: Array<any> = deck
@@ -63,7 +71,7 @@ class SocketService {
                         data: {
                             playerName: playerName,
                             email: playerEmail,
-                            roomId: room.id,
+                            roomId: room?.id,
                             socketId: socket.id,
                             deck: recDeck,
                             // room : { connect : { id : room.id } }
@@ -75,12 +83,8 @@ class SocketService {
                 } catch (error : any) {
                     if (error.code === 'P2002') {
                         // Handle unique constraint violation
-                        console.log(`Room with ID ${roomId} already created by another process.`);
-                        room = await prisma.room.findUnique({
-                            where: {
-                                id: roomId,
-                            },
-                        });
+                        console.log('DUPLICATE PLAYER ENTRY',error);
+                        
                     } else {
                         throw error; // Rethrow other unexpected errors
                     }
@@ -125,14 +129,14 @@ class SocketService {
                     })
                 }
 
-                const room = prisma.room.findUnique({
+                const room = await prisma.room.findUnique({
                     where: {
                         id: roomId
                     }
                 })
 
                 if(room){
-                    const playerCount = room.players.length
+                    const playerCount = room..length
                     if(playerCount === 0){
                         await prisma.room.delete({
                             where: {

@@ -33,20 +33,29 @@ class SocketService {
                 console.log("Joined room: ", roomId);
                 socket.join(roomId);
                 console.log('player information : ', playerName, playerEmail, deck);
-                let room = yield prisma.room.findUnique({
-                    where: {
-                        id: roomId
-                    }
-                });
-                if (!room) {
+                let room;
+                try {
                     room = yield prisma.room.create({
                         data: {
                             id: roomId,
                             clockwise: true,
                             whoseTurn: 0,
-                            discardCard: { color: cardObjects_1.cardList[12].color, value: '7' }
+                            discardCard: { color: cardObjects_1.cardList[12].color, value: '7' },
                         }
                     });
+                }
+                catch (error) {
+                    if (error.code == 'P2002') {
+                        console.log('DUPLICATE ROOM ENTRY');
+                        room = yield prisma.room.findUnique({
+                            where: {
+                                id: roomId
+                            }
+                        });
+                    }
+                    else {
+                        throw error;
+                    }
                 }
                 const recDeck = deck;
                 let player;
@@ -55,7 +64,7 @@ class SocketService {
                         data: {
                             playerName: playerName,
                             email: playerEmail,
-                            roomId: room.id,
+                            roomId: room === null || room === void 0 ? void 0 : room.id,
                             socketId: socket.id,
                             deck: recDeck,
                             // room : { connect : { id : room.id } }
@@ -68,12 +77,7 @@ class SocketService {
                 catch (error) {
                     if (error.code === 'P2002') {
                         // Handle unique constraint violation
-                        console.log(`Room with ID ${roomId} already created by another process.`);
-                        room = yield prisma.room.findUnique({
-                            where: {
-                                id: roomId,
-                            },
-                        });
+                        console.log('DUPLICATE PLAYER ENTRY', error);
                     }
                     else {
                         throw error; // Rethrow other unexpected errors
