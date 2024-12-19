@@ -113,9 +113,12 @@ class SocketService {
                         }
                     });
                 }
-                const room = prisma.room.findUnique({
+                const room = yield prisma.room.findUnique({
                     where: {
                         id: roomId
+                    },
+                    include: {
+                        players: true
                     }
                 });
                 if (room) {

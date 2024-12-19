@@ -132,11 +132,14 @@ class SocketService {
                 const room = await prisma.room.findUnique({
                     where: {
                         id: roomId
+                    },
+                    include: {
+                        players: true
                     }
                 })
 
                 if(room){
-                    const playerCount = room..length
+                    const playerCount = room.players.length
                     if(playerCount === 0){
                         await prisma.room.delete({
                             where: {
