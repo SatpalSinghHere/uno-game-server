@@ -116,7 +116,7 @@ class SocketService {
                 }
 
                 socket.in(roomId).emit('new game state', gameState)
-                socket.to(socket.id).emit('new game state', gameState)
+                socket.emit('new game state', gameState)
 
             })
 

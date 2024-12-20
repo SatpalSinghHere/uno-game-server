@@ -105,7 +105,7 @@ class SocketService {
                     players: room === null || room === void 0 ? void 0 : room.players
                 };
                 socket.in(roomId).emit('new game state', gameState);
-                socket.to(socket.id).emit('new game state', gameState);
+                socket.emit('new game state', gameState);
             }));
             socket.on("Start Game", (roomId) => {
                 io.emit("Start Game", roomId);
