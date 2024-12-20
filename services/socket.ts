@@ -31,14 +31,14 @@ class SocketService {
             console.log("New connection: ", socket.id)
 
             const handleWaitingRoom = (username: string, roomId: string) => {
-                this.players.push([roomId, socket.id, username]);
-                console.log(socket.id,' Joined Room : ', roomId)
-                socket.join(roomId)
-                console.log('new player waiting');
-                io.in('roomId').emit('players waiting', this.players);
-                io.to(socket.id).emit('players waiting', this.players);
-                socket.off('coming to waiting room', handleWaitingRoom);
-                
+                if (!this.players.some(player => player[0] === roomId && player[1] === socket.id && player[2] === username )) {
+                    this.players.push([roomId, socket.id, username]);
+                    console.log(socket.id, ' Joined Room : ', roomId)
+                    socket.join(roomId)
+                    console.log('new player waiting');
+                    io.in(roomId).emit('players waiting', this.players);
+                    socket.emit('players waiting', this.players);                    
+                }
             };
 
             socket.on('coming to waiting room', handleWaitingRoom);
@@ -57,7 +57,7 @@ class SocketService {
                             whoseTurn: 0,
                             discardCard: { color: cardList[12].color, value: '7' },
                         },
-                        include:{
+                        include: {
                             players: true
                         }
                     })
@@ -95,7 +95,7 @@ class SocketService {
                             deck: recDeck,
                             // room : { connect : { id : room.id } }
                         },
-                        
+
                     })
                 } catch (error: any) {
                     if (error.code === 'P2002') {

@@ -30,13 +30,14 @@ class SocketService {
         io.on("connect", (socket) => {
             console.log("New connection: ", socket.id);
             const handleWaitingRoom = (username, roomId) => {
-                this.players.push([roomId, socket.id, username]);
-                console.log(socket.id, ' Joined Room : ', roomId);
-                socket.join(roomId);
-                console.log('new player waiting');
-                io.in('roomId').emit('players waiting', this.players);
-                io.to(socket.id).emit('players waiting', this.players);
-                socket.off('coming to waiting room', handleWaitingRoom);
+                if (!this.players.some(player => player[0] === roomId && player[1] === socket.id && player[2] === username)) {
+                    this.players.push([roomId, socket.id, username]);
+                    console.log(socket.id, ' Joined Room : ', roomId);
+                    socket.join(roomId);
+                    console.log('new player waiting');
+                    io.in(roomId).emit('players waiting', this.players);
+                    socket.emit('players waiting', this.players);
+                }
             };
             socket.on('coming to waiting room', handleWaitingRoom);
             socket.on('join room', (roomId, playerName, playerEmail, deck) => __awaiter(this, void 0, void 0, function* () {
@@ -51,6 +52,9 @@ class SocketService {
                             clockwise: true,
                             whoseTurn: 0,
                             discardCard: { color: cardObjects_1.cardList[12].color, value: '7' },
+                        },
+                        include: {
+                            players: true
                         }
                     });
                 }
@@ -60,6 +64,9 @@ class SocketService {
                         room = yield prisma.room.findUnique({
                             where: {
                                 id: roomId
+                            },
+                            include: {
+                                players: true
                             }
                         });
                     }
@@ -79,9 +86,6 @@ class SocketService {
                             deck: recDeck,
                             // room : { connect : { id : room.id } }
                         },
-                        include: {
-                            room: true
-                        }
                     });
                 }
                 catch (error) {
@@ -93,15 +97,22 @@ class SocketService {
                         throw error; // Rethrow other unexpected errors
                     }
                 }
+                const gameState = {
+                    roomId: roomId,
+                    clockwise: room === null || room === void 0 ? void 0 : room.clockwise,
+                    whoseTurn: room === null || room === void 0 ? void 0 : room.whoseTurn,
+                    discardCard: room === null || room === void 0 ? void 0 : room.discardCard,
+                    players: room === null || room === void 0 ? void 0 : room.players
+                };
+                socket.in(roomId).emit('new game state', gameState);
+                socket.to(socket.id).emit('new game state', gameState);
             }));
-            const card = { color: "#D32F2F", value: '3' };
-            io.emit("New Central Card", JSON.stringify(card));
             socket.on("Start Game", (roomId) => {
                 io.emit("Start Game", roomId);
             });
-            socket.on("New Central Card", (data) => {
-                console.log("New Central Card: ", data);
-                io.emit("New Central Card", data);
+            socket.on("new game state", (data) => {
+                console.log("New game State ", data);
+                io.emit("new game state", data);
             });
             socket.on("disconnect", () => __awaiter(this, void 0, void 0, function* () {
                 console.log("Disconnected: ", socket.id);
