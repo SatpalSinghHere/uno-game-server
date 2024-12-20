@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 
 class SocketService {
     private _io: Server
-    private players: string[]
+    private players: Array<string[]>
     private turnOrder
 
     constructor() {
@@ -19,7 +19,7 @@ class SocketService {
             }
         })
 
-        this.players = <string[]>[]
+        this.players = []
         this.turnOrder = <number[]>[]
     }
 
@@ -31,11 +31,12 @@ class SocketService {
             console.log("New connection: ", socket.id)
 
             const handleWaitingRoom = (username: string, roomId: string) => {
-                this.players.push(username);
+                this.players.push([roomId, socket.id, username]);
                 console.log(socket.id,' Joined Room : ', roomId)
                 socket.join(roomId)
                 console.log('new player waiting');
                 io.in('roomId').emit('players waiting', this.players);
+                io.to(socket.id).emit('players waiting', this.players);
                 socket.off('coming to waiting room', handleWaitingRoom);
                 
             };
@@ -55,6 +56,9 @@ class SocketService {
                             clockwise: true,
                             whoseTurn: 0,
                             discardCard: { color: cardList[12].color, value: '7' },
+                        },
+                        include:{
+                            players: true
                         }
                     })
                 }
@@ -64,6 +68,9 @@ class SocketService {
                         room = await prisma.room.findUnique({
                             where: {
                                 id: roomId
+                            },
+                            include: {
+                                players: true
                             }
                         })
                     }
@@ -88,42 +95,48 @@ class SocketService {
                             deck: recDeck,
                             // room : { connect : { id : room.id } }
                         },
-                        include: {
-                            room: true
-                        }
+                        
                     })
                 } catch (error: any) {
                     if (error.code === 'P2002') {
                         // Handle unique constraint violation
-                        console.log('DUPLICATE PLAYER ENTRY', error);
+                        console.log('DUPLICATE PLAYER ENTRY');
 
                     } else {
                         throw error; // Rethrow other unexpected errors
                     }
                 }
 
+                const gameState = {
+                    roomId: roomId,
+                    clockwise: room?.clockwise,
+                    whoseTurn: room?.whoseTurn,
+                    discardCard: room?.discardCard,
+                    players: room?.players
+                }
+
+                socket.in(roomId).emit('new game state', gameState)
+                socket.to(socket.id).emit('new game state', gameState)
+
             })
 
 
-
-            const card = { color: "#D32F2F", value: '3' }
-            io.emit("New Central Card", JSON.stringify(card))
 
             socket.on("Start Game", (roomId) => {
 
                 io.emit("Start Game", roomId)
             })
 
-            socket.on("New Central Card", (data) => {
-                console.log("New Central Card: ", data)
-                io.emit("New Central Card", data)
+            socket.on("new game state", (data) => {
+                console.log("New game State ", data)
+                io.emit("new game state", data)
             })
 
 
             socket.on("disconnect", async () => {
                 console.log("Disconnected: ", socket.id)
-                this.players = this.players.filter(player => player !== socket.id)
-                io.emit("players waiting", this.players)
+                this.players = this.players.filter(player => player[1] !== socket.id)
+                // io.in(this.players[0][0]).emit("players waiting", this.players)
 
                 const player = await prisma.player.findUnique({
                     where: {

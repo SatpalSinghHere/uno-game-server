@@ -30,11 +30,12 @@ class SocketService {
         io.on("connect", (socket) => {
             console.log("New connection: ", socket.id);
             const handleWaitingRoom = (username, roomId) => {
-                this.players.push(username);
+                this.players.push([roomId, socket.id, username]);
                 console.log(socket.id, ' Joined Room : ', roomId);
                 socket.join(roomId);
                 console.log('new player waiting');
                 io.in('roomId').emit('players waiting', this.players);
+                io.to(socket.id).emit('players waiting', this.players);
                 socket.off('coming to waiting room', handleWaitingRoom);
             };
             socket.on('coming to waiting room', handleWaitingRoom);
@@ -86,7 +87,7 @@ class SocketService {
                 catch (error) {
                     if (error.code === 'P2002') {
                         // Handle unique constraint violation
-                        console.log('DUPLICATE PLAYER ENTRY', error);
+                        console.log('DUPLICATE PLAYER ENTRY');
                     }
                     else {
                         throw error; // Rethrow other unexpected errors
@@ -104,8 +105,8 @@ class SocketService {
             });
             socket.on("disconnect", () => __awaiter(this, void 0, void 0, function* () {
                 console.log("Disconnected: ", socket.id);
-                this.players = this.players.filter(player => player !== socket.id);
-                io.emit("players waiting", this.players);
+                this.players = this.players.filter(player => player[1] !== socket.id);
+                // io.in(this.players[0][0]).emit("players waiting", this.players)
                 const player = yield prisma.player.findUnique({
                     where: {
                         socketId: socket.id
