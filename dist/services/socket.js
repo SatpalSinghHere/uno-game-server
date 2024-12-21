@@ -108,7 +108,8 @@ class SocketService {
                 socket.emit('new game state', gameState);
             }));
             socket.on("Start Game", (roomId) => {
-                io.emit("Start Game", roomId);
+                io.in(roomId).emit("Start Game", roomId);
+                socket.emit("Start Game", roomId);
             });
             socket.on("new game state", (data) => {
                 console.log("New game State ", data);

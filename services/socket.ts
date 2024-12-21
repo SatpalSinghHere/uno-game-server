@@ -1,15 +1,13 @@
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { Card, cardList } from "../utils/cardObjects";
-import { Prisma, PrismaClient } from "@prisma/client";
-import { connect } from "http2";
+import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient()
-
+const prisma = new PrismaClient();
 
 class SocketService {
-    private _io: Server
-    private players: Array<string[]>
-    private turnOrder
+    private _io: Server;
+    private players: Array<string[]>;
+    private turnOrder;
 
     constructor() {
         this._io = new Server({
@@ -17,170 +15,150 @@ class SocketService {
                 origin: "*",
                 allowedHeaders: ["*"]
             }
-        })
+        });
 
-        this.players = []
-        this.turnOrder = <number[]>[]
+        this.players = [];
+        this.turnOrder = <number[]>[];
+    }
+
+    private handleWaitingRoom(socket: Socket, io: Server, username: string, roomId: string) {
+        if (!this.players.some(player => player[0] === roomId && player[1] === socket.id && player[2] === username)) {
+            this.players.push([roomId, socket.id, username]);
+            console.log(socket.id, 'Joined Room:', roomId);
+            socket.join(roomId);
+            console.log('New player waiting');
+            io.in(roomId).emit('players waiting', this.players);
+            socket.emit('players waiting', this.players);
+        }
+    }
+
+    private async handleJoinRoom(socket: Socket, io: Server, roomId: string, playerName: string, playerEmail: string, deck: Card[]) {
+        console.log("Joined room:", roomId);
+        socket.join(roomId);
+
+        console.log('Player information:', playerName, playerEmail, deck);
+        let room;
+        try {
+            room = await prisma.room.create({
+                data: {
+                    id: roomId,
+                    clockwise: true,
+                    whoseTurn: 0,
+                    discardCard: { color: cardList[12].color, value: '7' },
+                },
+                include: {
+                    players: true
+                }
+            });
+        } catch (error: any) {
+            if (error.code == 'P2002') {
+                console.log('DUPLICATE ROOM ENTRY');
+                room = await prisma.room.findUnique({
+                    where: { id: roomId },
+                    include: { players: true }
+                });
+            } else {
+                throw error;
+            }
+        }
+
+        const recDeck: Array<any> = deck;
+
+        try {
+            await prisma.player.create({
+                data: {
+                    playerName: playerName,
+                    email: playerEmail,
+                    roomId: room?.id,
+                    socketId: socket.id,
+                    deck: recDeck,
+                },
+            });
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                console.log('DUPLICATE PLAYER ENTRY');
+            } else {
+                throw error;
+            }
+        }
+
+        const gameState = {
+            roomId: roomId,
+            clockwise: room?.clockwise,
+            whoseTurn: room?.whoseTurn,
+            discardCard: room?.discardCard,
+            players: room?.players
+        };
+
+        socket.in(roomId).emit('new game state', gameState);
+        socket.emit('new game state', gameState);
+    }
+
+    private handleStartGame(socket: Socket, io: Server, roomId: string) {
+        io.in(roomId).emit("Start Game", roomId);
+        socket.emit("Start Game", roomId);
+    }
+
+    private handleNewGameState(io: Server, data: any) {
+        console.log("New game state:", data);
+        io.emit("new game state", data);
+    }
+
+    private async handleDisconnect(socket: Socket) {
+        console.log("Disconnected:", socket.id);
+        this.players = this.players.filter(player => player[1] !== socket.id);
+
+        const player = await prisma.player.findUnique({
+            where: { socketId: socket.id }
+        });
+
+        if (player) {
+            const roomId = player.roomId;
+            await prisma.player.delete({ where: { socketId: player.socketId } });
+
+            const room = await prisma.room.findUnique({
+                where: { id: roomId },
+                include: { players: true }
+            });
+
+            if (room && room.players.length === 0) {
+                await prisma.room.delete({ where: { id: roomId } });
+            }
+        }
     }
 
     public initListeners() {
-        const io = this._io
-        console.log("Init Socket listeners...")
+        const io = this._io;
+        console.log("Init Socket listeners...");
 
         io.on("connect", (socket) => {
-            console.log("New connection: ", socket.id)
+            console.log("New connection:", socket.id);
 
-            const handleWaitingRoom = (username: string, roomId: string) => {
-                if (!this.players.some(player => player[0] === roomId && player[1] === socket.id && player[2] === username )) {
-                    this.players.push([roomId, socket.id, username]);
-                    console.log(socket.id, ' Joined Room : ', roomId)
-                    socket.join(roomId)
-                    console.log('new player waiting');
-                    io.in(roomId).emit('players waiting', this.players);
-                    socket.emit('players waiting', this.players);                    
-                }
-            };
+            socket.on('coming to waiting room', (username: string, roomId: string) =>
+                this.handleWaitingRoom(socket, io, username, roomId)
+            );
 
-            socket.on('coming to waiting room', handleWaitingRoom);
+            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string, deck: Card[]) =>
+                this.handleJoinRoom(socket, io, roomId, playerName, playerEmail, deck)
+            );
 
-            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string, deck: Card[]) => {
-                console.log("Joined room: ", roomId)
-                socket.join(roomId)
+            socket.on("Start Game", (roomId) =>
+                this.handleStartGame(socket, io, roomId)
+            );
 
-                console.log('player information : ', playerName, playerEmail, deck)
-                let room
-                try {
-                    room = await prisma.room.create({
-                        data: {
-                            id: roomId,
-                            clockwise: true,
-                            whoseTurn: 0,
-                            discardCard: { color: cardList[12].color, value: '7' },
-                        },
-                        include: {
-                            players: true
-                        }
-                    })
-                }
-                catch (error: any) {
-                    if (error.code == 'P2002') {
-                        console.log('DUPLICATE ROOM ENTRY')
-                        room = await prisma.room.findUnique({
-                            where: {
-                                id: roomId
-                            },
-                            include: {
-                                players: true
-                            }
-                        })
-                    }
-                    else {
-                        throw error
-                    }
-                }
+            socket.on("new game state", (data) =>
+                this.handleNewGameState(io, data)
+            );
 
-                const recDeck: Array<any> = deck
-
-                let player
-
-
-
-                try {
-                    player = await prisma.player.create({
-                        data: {
-                            playerName: playerName,
-                            email: playerEmail,
-                            roomId: room?.id,
-                            socketId: socket.id,
-                            deck: recDeck,
-                            // room : { connect : { id : room.id } }
-                        },
-
-                    })
-                } catch (error: any) {
-                    if (error.code === 'P2002') {
-                        // Handle unique constraint violation
-                        console.log('DUPLICATE PLAYER ENTRY');
-
-                    } else {
-                        throw error; // Rethrow other unexpected errors
-                    }
-                }
-
-                const gameState = {
-                    roomId: roomId,
-                    clockwise: room?.clockwise,
-                    whoseTurn: room?.whoseTurn,
-                    discardCard: room?.discardCard,
-                    players: room?.players
-                }
-
-                socket.in(roomId).emit('new game state', gameState)
-                socket.emit('new game state', gameState)
-
-            })
-
-
-
-            socket.on("Start Game", (roomId) => {
-
-                io.emit("Start Game", roomId)
-            })
-
-            socket.on("new game state", (data) => {
-                console.log("New game State ", data)
-                io.emit("new game state", data)
-            })
-
-
-            socket.on("disconnect", async () => {
-                console.log("Disconnected: ", socket.id)
-                this.players = this.players.filter(player => player[1] !== socket.id)
-                // io.in(this.players[0][0]).emit("players waiting", this.players)
-
-                const player = await prisma.player.findUnique({
-                    where: {
-                        socketId: socket.id
-                    }
-                })
-                let roomId
-                if (player) {
-                    roomId = player.roomId
-                    await prisma.player.delete({
-                        where: {
-                            socketId: player.socketId
-                        }
-                    })
-
-
-                    const room = await prisma.room.findUnique({
-                        where: {
-                            id: roomId
-                        },
-                        include: {
-                            players: true
-                        }
-                    })
-
-
-                    if (room) {
-                        const playerCount = room.players.length
-                        if (playerCount === 0) {
-                            await prisma.room.delete({
-                                where: {
-                                    id: roomId
-                                }
-                            })
-                        }
-                    }
-                }
-            })
-        })
+            socket.on("disconnect", () =>
+                this.handleDisconnect(socket)
+            );
+        });
     }
+
     get io(): Server {
-        return this._io
+        return this._io;
     }
-
 }
 
-export default SocketService
+export default SocketService;
