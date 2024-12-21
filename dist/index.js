@@ -14,9 +14,24 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const http_1 = __importDefault(require("http"));
 const socket_1 = __importDefault(require("./services/socket"));
+const client_1 = require("@prisma/client");
 const PORT = process.env.PORT || 8000;
+const prisma = new client_1.PrismaClient();
+function checkDatabaseConnection() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield prisma.$connect();
+            console.log('Database connection successful');
+        }
+        catch (error) {
+            console.error('Database connection failed:', error.message);
+            process.exit(1); // Exit the process if the database connection fails
+        }
+    });
+}
 function init() {
     return __awaiter(this, void 0, void 0, function* () {
+        yield checkDatabaseConnection();
         const socketService = new socket_1.default();
         const httpServer = http_1.default.createServer();
         socketService.io.attach(httpServer);

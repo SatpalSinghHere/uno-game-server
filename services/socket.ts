@@ -38,25 +38,6 @@ class SocketService {
         socket.join(roomId);
 
         let room;
-        const deck: Array<any> = randomDeckGen(10)
-        console.log('Player information:', playerName, playerEmail, deck);
-        try {
-            await prisma.player.create({
-                data: {
-                    playerName: playerName,
-                    email: playerEmail,
-                    roomId: roomId,
-                    socketId: socket.id,
-                    deck: deck,
-                },
-            });
-        } catch (error: any) {
-            if (error.code === 'P2002') {
-                console.log('DUPLICATE PLAYER ENTRY');
-            } else {
-                throw error;
-            }
-        }
         try {
             room = await prisma.room.create({
                 data: {
@@ -80,6 +61,27 @@ class SocketService {
                 throw error;
             }
         }
+        
+        const deck: Array<any> = randomDeckGen(10)
+        console.log('Player information:', playerName, playerEmail, deck);
+        try {
+            await prisma.player.create({
+                data: {
+                    playerName: playerName,
+                    email: playerEmail,
+                    roomId: roomId,
+                    socketId: socket.id,
+                    deck: deck,
+                },
+            });
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                console.log('DUPLICATE PLAYER ENTRY');
+            } else {
+                throw error;
+            }
+        }
+        
 
         const gameState = {
             roomId: roomId,
