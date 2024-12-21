@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { Card, cardList } from "../utils/cardObjects";
 import { PrismaClient } from "@prisma/client";
+import { randomDeckGen } from "../utils/functions";
 
 const prisma = new PrismaClient();
 
@@ -32,12 +33,30 @@ class SocketService {
         }
     }
 
-    private async handleJoinRoom(socket: Socket, io: Server, roomId: string, playerName: string, playerEmail: string, deck: Card[]) {
+    private async handleJoinRoom(socket: Socket, io: Server, roomId: string, playerName: string, playerEmail: string) {
         console.log("Joined room:", roomId);
         socket.join(roomId);
 
-        console.log('Player information:', playerName, playerEmail, deck);
         let room;
+        const deck: Array<any> = randomDeckGen(10)
+        console.log('Player information:', playerName, playerEmail, deck);
+        try {
+            await prisma.player.create({
+                data: {
+                    playerName: playerName,
+                    email: playerEmail,
+                    roomId: roomId,
+                    socketId: socket.id,
+                    deck: deck,
+                },
+            });
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                console.log('DUPLICATE PLAYER ENTRY');
+            } else {
+                throw error;
+            }
+        }
         try {
             room = await prisma.room.create({
                 data: {
@@ -57,26 +76,6 @@ class SocketService {
                     where: { id: roomId },
                     include: { players: true }
                 });
-            } else {
-                throw error;
-            }
-        }
-
-        const recDeck: Array<any> = deck;
-
-        try {
-            await prisma.player.create({
-                data: {
-                    playerName: playerName,
-                    email: playerEmail,
-                    roomId: room?.id,
-                    socketId: socket.id,
-                    deck: recDeck,
-                },
-            });
-        } catch (error: any) {
-            if (error.code === 'P2002') {
-                console.log('DUPLICATE PLAYER ENTRY');
             } else {
                 throw error;
             }
@@ -138,8 +137,8 @@ class SocketService {
                 this.handleWaitingRoom(socket, io, username, roomId)
             );
 
-            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string, deck: Card[]) =>
-                this.handleJoinRoom(socket, io, roomId, playerName, playerEmail, deck)
+            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string, deck: Card[]) => //remove deck parameter
+                this.handleJoinRoom(socket, io, roomId, playerName, playerEmail)
             );
 
             socket.on("Start Game", (roomId) =>
