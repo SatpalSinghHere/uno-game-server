@@ -38,7 +38,6 @@ class SocketService {
     handleJoinRoom(socket, io, roomId, playerName, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
             console.log("Joined room:", roomId);
-            socket.join(roomId);
             let room;
             try {
                 room = yield prisma.room.create({
@@ -93,6 +92,7 @@ class SocketService {
                 discardCard: room === null || room === void 0 ? void 0 : room.discardCard,
                 players: room === null || room === void 0 ? void 0 : room.players
             };
+            console.log('NEW GAME STATE', gameState);
             socket.in(roomId).emit('new game state', gameState);
             socket.emit('new game state', gameState);
         });

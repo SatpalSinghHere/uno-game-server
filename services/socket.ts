@@ -35,8 +35,7 @@ class SocketService {
 
     private async handleJoinRoom(socket: Socket, io: Server, roomId: string, playerName: string, playerEmail: string) {
         console.log("Joined room:", roomId);
-        socket.join(roomId);
-
+        
         let room;
         try {
             room = await prisma.room.create({
@@ -90,6 +89,8 @@ class SocketService {
             discardCard: room?.discardCard,
             players: room?.players
         };
+
+        console.log('NEW GAME STATE', gameState)
 
         socket.in(roomId).emit('new game state', gameState);
         socket.emit('new game state', gameState);
