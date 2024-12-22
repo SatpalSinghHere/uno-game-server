@@ -85,12 +85,15 @@ class SocketService {
                     throw error;
                 }
             }
+            const players = yield prisma.player.findMany({
+                where: { roomId: roomId }
+            });
             const gameState = {
                 roomId: roomId,
                 clockwise: room === null || room === void 0 ? void 0 : room.clockwise,
                 whoseTurn: room === null || room === void 0 ? void 0 : room.whoseTurn,
                 discardCard: room === null || room === void 0 ? void 0 : room.discardCard,
-                players: room === null || room === void 0 ? void 0 : room.players
+                players: players
             };
             console.log('NEW GAME STATE', gameState);
             socket.in(roomId).emit('new game state', gameState);
@@ -101,9 +104,10 @@ class SocketService {
         io.in(roomId).emit("Start Game", roomId);
         socket.emit("Start Game", roomId);
     }
-    handleNewGameState(io, data) {
+    handleNewGameState(socket, io, data, roomId) {
         console.log("New game state:", data);
-        io.emit("new game state", data);
+        io.to(roomId).emit("new game state", data);
+        socket.emit("new game state", data);
     }
     handleDisconnect(socket) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -135,7 +139,7 @@ class SocketService {
              __awaiter(this, void 0, void 0, function* () { //remove deck parameter
             return this.handleJoinRoom(socket, io, roomId, playerName, playerEmail); }));
             socket.on("Start Game", (roomId) => this.handleStartGame(socket, io, roomId));
-            socket.on("new game state", (data) => this.handleNewGameState(io, data));
+            socket.on("new game state", (data, roomId) => this.handleNewGameState(socket, io, data, roomId));
             socket.on("disconnect", () => this.handleDisconnect(socket));
         });
     }

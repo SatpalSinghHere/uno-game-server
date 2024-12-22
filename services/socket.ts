@@ -81,13 +81,16 @@ class SocketService {
             }
         }
         
+        const players = await prisma.player.findMany({
+            where: { roomId: roomId }
+        })
 
         const gameState = {
             roomId: roomId,
             clockwise: room?.clockwise,
             whoseTurn: room?.whoseTurn,
             discardCard: room?.discardCard,
-            players: room?.players
+            players: players
         };
 
         console.log('NEW GAME STATE', gameState)
@@ -101,9 +104,10 @@ class SocketService {
         socket.emit("Start Game", roomId);
     }
 
-    private handleNewGameState(io: Server, data: any) {
+    private handleNewGameState(socket: Socket, io: Server, data: any, roomId: string) {
         console.log("New game state:", data);
-        io.emit("new game state", data);
+        io.to(roomId).emit("new game state", data);
+        socket.emit("new game state", data);
     }
 
     private async handleDisconnect(socket: Socket) {
@@ -148,8 +152,8 @@ class SocketService {
                 this.handleStartGame(socket, io, roomId)
             );
 
-            socket.on("new game state", (data) =>
-                this.handleNewGameState(io, data)
+            socket.on("new game state", (data, roomId) =>
+                this.handleNewGameState(socket, io, data, roomId)
             );
 
             socket.on("disconnect", () =>
