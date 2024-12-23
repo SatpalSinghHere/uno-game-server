@@ -37,7 +37,10 @@ class SocketService {
     }
     handleJoinRoom(socket, io, roomId, playerName, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("Joined room:", roomId);
+            if ((socket.rooms.size === 1)) {
+                console.log("Joined room:", roomId);
+                socket.join(roomId);
+            }
             let room;
             try {
                 room = yield prisma.room.create({
@@ -96,7 +99,7 @@ class SocketService {
                 players: players
             };
             console.log('NEW GAME STATE', gameState);
-            socket.in(roomId).emit('new game state', gameState);
+            io.in(roomId).emit('new game state', gameState);
             socket.emit('new game state', gameState);
         });
     }
@@ -105,8 +108,8 @@ class SocketService {
         socket.emit("Start Game", roomId);
     }
     handleNewGameState(socket, io, data, roomId) {
-        console.log("New game state:", data);
-        io.to(roomId).emit("new game state", data);
+        console.log("New game state:", data, roomId);
+        io.in(roomId).emit("new game state", data);
         socket.emit("new game state", data);
     }
     handleDisconnect(socket) {
@@ -116,15 +119,25 @@ class SocketService {
             const player = yield prisma.player.findUnique({
                 where: { socketId: socket.id }
             });
-            if (player) {
-                const roomId = player.roomId;
-                yield prisma.player.delete({ where: { socketId: player.socketId } });
-                const room = yield prisma.room.findUnique({
-                    where: { id: roomId },
-                    include: { players: true }
-                });
-                if (room && room.players.length === 0) {
-                    yield prisma.room.delete({ where: { id: roomId } });
+            try {
+                if (player) {
+                    const roomId = player.roomId;
+                    yield prisma.player.delete({ where: { socketId: player.socketId } });
+                    const room = yield prisma.room.findUnique({
+                        where: { id: roomId },
+                        include: { players: true }
+                    });
+                    if (room && room.players.length === 0) {
+                        yield prisma.room.delete({ where: { id: roomId } });
+                    }
+                }
+            }
+            catch (error) {
+                if (error.code === 'P2025') {
+                    console.log('Room already deleted');
+                }
+                else {
+                    throw error;
                 }
             }
         });
