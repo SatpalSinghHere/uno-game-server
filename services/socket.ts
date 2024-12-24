@@ -108,6 +108,41 @@ class SocketService {
     }
 
     private handleNewGameState(socket: Socket, io: Server, data: any, roomId: string) {
+        if(data.discardCard.value === '+2'){
+            let whoseTurn = data.players[data.whoseTurn]
+            let havingPLus2 = false
+            for(let i = 0; i < whoseTurn.deck.length; i++){
+                if(whoseTurn.deck[i].value === '+2'){
+                    havingPLus2 = true
+                    break
+                }
+            }
+            if(!havingPLus2){
+                let addCard = randomDeckGen(2)
+                data.players[data.whoseTurn].deck.push(addCard[0])
+                data.players[data.whoseTurn].deck.push(addCard[1])
+            }
+
+        }
+        if(data.discardCard.value === '+4'){
+            let whoseTurn = data.players[data.whoseTurn]
+            let havingPLus4 = false
+            for(let i = 0; i < whoseTurn.deck.length; i++){
+                if(whoseTurn.deck[i].value === '+4'){
+                    havingPLus4 = true
+                    break
+                }
+            }
+            if(!havingPLus4){
+                let addCard = randomDeckGen(4)
+                data.players[data.whoseTurn].deck.push(addCard[0])
+                data.players[data.whoseTurn].deck.push(addCard[1])
+                data.players[data.whoseTurn].deck.push(addCard[2])
+                data.players[data.whoseTurn].deck.push(addCard[3])
+            }
+
+        }
+
         console.log("New game state:", data, roomId);
         io.in(roomId).emit("new game state", data);
         socket.emit("new game state", data);
