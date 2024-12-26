@@ -199,7 +199,7 @@ class SocketService {
     }
 
     private async handleForNoPlusCard(socket: Socket, io: Server, gameState: GameState, playerEmail: string) {
-        let counter = gameState.counter
+        let counter = gameState?.counter
         let extraCards = randomDeckGen(counter)
 
         gameState.counter = 0

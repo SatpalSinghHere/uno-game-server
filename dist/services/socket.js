@@ -49,6 +49,7 @@ class SocketService {
                         id: roomId,
                         clockwise: true,
                         whoseTurn: 0,
+                        counter: 0,
                         discardCard: { color: cardObjects_1.cardList[12].color, value: '7' },
                     },
                     include: {
@@ -97,7 +98,8 @@ class SocketService {
                 clockwise: room === null || room === void 0 ? void 0 : room.clockwise,
                 whoseTurn: room === null || room === void 0 ? void 0 : room.whoseTurn,
                 discardCard: room === null || room === void 0 ? void 0 : room.discardCard,
-                players: players
+                players: players,
+                counter: room === null || room === void 0 ? void 0 : room.counter
             };
             console.log('NEW GAME STATE', gameState);
             io.in(roomId).emit('new game state', gameState);
@@ -108,10 +110,43 @@ class SocketService {
         io.in(roomId).emit("Start Game", roomId);
         socket.emit("Start Game", roomId);
     }
-    handleNewGameState(socket, io, data, roomId) {
-        console.log("New game state:", data, roomId);
-        io.in(roomId).emit("new game state", data);
-        socket.emit("new game state", data);
+    handleNewGameState(socket, io, gameState, roomId, playerEmail) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            if (gameState.discardCard.value === '+2') {
+                gameState.counter = gameState.counter + 2;
+            }
+            if (gameState.discardCard.value === '+4') {
+                gameState.counter = gameState.counter + 4;
+            }
+            console.log("New game state:", gameState, roomId);
+            io.in(roomId).emit("new game state", gameState);
+            socket.emit("new game state", gameState);
+            let newDeck = (_a = gameState.players.find(player => player.email === playerEmail)) === null || _a === void 0 ? void 0 : _a.deck;
+            if (newDeck) {
+                yield prisma.player.update({
+                    where: {
+                        email: playerEmail
+                    },
+                    data: {
+                        deck: newDeck
+                    }
+                });
+            }
+            if (roomId) {
+                yield prisma.room.update({
+                    where: {
+                        id: roomId
+                    },
+                    data: {
+                        clockwise: gameState.clockwise,
+                        whoseTurn: gameState.whoseTurn,
+                        discardCard: gameState.discardCard,
+                        counter: gameState.counter
+                    }
+                });
+            }
+        });
     }
     handleDisconnect(socket) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -143,8 +178,26 @@ class SocketService {
             }
         });
     }
-    handleForNoPlus2(socket, io, gameState, playerEmail) {
+    handleForNoPlusCard(socket, io, gameState, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
+            let counter = gameState === null || gameState === void 0 ? void 0 : gameState.counter;
+            let extraCards = (0, functions_1.randomDeckGen)(counter);
+            gameState.counter = 0;
+            if (gameState.clockwise) {
+                gameState.whoseTurn = (gameState.whoseTurn + 1) % gameState.players.length;
+            }
+            else {
+                gameState.whoseTurn = (gameState.whoseTurn - 1 + gameState.players.length) % gameState.players.length;
+            }
+            let player = gameState.players.find(player => player.email === playerEmail);
+            let deck = player === null || player === void 0 ? void 0 : player.deck;
+            deck = deck === null || deck === void 0 ? void 0 : deck.concat(extraCards);
+            if (deck) {
+                gameState.players.find(player => player.email === playerEmail).deck = deck;
+            }
+            console.log("New game state:", gameState);
+            io.in(gameState.roomId).emit("new game state", gameState);
+            socket.emit("new game state", gameState);
         });
     }
     initListeners() {
@@ -157,9 +210,9 @@ class SocketService {
              __awaiter(this, void 0, void 0, function* () { //remove deck parameter
             return this.handleJoinRoom(socket, io, roomId, playerName, playerEmail); }));
             socket.on("Start Game", (roomId) => this.handleStartGame(socket, io, roomId));
-            socket.on("new game state", (data, roomId) => this.handleNewGameState(socket, io, data, roomId));
-            socket.on("+2 card not available", (gameState, playerEmail) => {
-                this.handleForNoPlus2(socket, io, gameState, playerEmail);
+            socket.on("new game state", (data, roomId, playerEmail) => this.handleNewGameState(socket, io, data, roomId, playerEmail));
+            socket.on("+ card not available", (gameState, playerEmail) => {
+                this.handleForNoPlusCard(socket, io, gameState, playerEmail);
             });
             socket.on("disconnect", () => this.handleDisconnect(socket));
         });

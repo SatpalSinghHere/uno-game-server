@@ -4,6 +4,7 @@ CREATE TABLE "Room" (
     "clockwise" BOOLEAN NOT NULL,
     "whoseTurn" INTEGER NOT NULL,
     "discardCard" JSONB NOT NULL,
+    "counter" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
