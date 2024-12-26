@@ -5,6 +5,23 @@ import { randomDeckGen } from "../utils/functions";
 
 const prisma = new PrismaClient();
 
+interface GameState  {
+    roomId: string,
+    clockwise: boolean,
+    whoseTurn: number,
+    discardCard: Card,
+    counter: number,
+    players: Array<
+        {
+            roomId: string,
+            playerName: string,
+            socketId: string,
+            email: string,
+            deck: Array<Card>
+        }
+    >
+};
+
 class SocketService {
     private _io: Server;
     private players: Array<string[]>;
@@ -46,6 +63,7 @@ class SocketService {
                     id: roomId,
                     clockwise: true,
                     whoseTurn: 0,
+                    counter: 0,
                     discardCard: { color: cardList[12].color, value: '7' },
                 },
                 include: {
@@ -93,7 +111,8 @@ class SocketService {
             clockwise: room?.clockwise,
             whoseTurn: room?.whoseTurn,
             discardCard: room?.discardCard,
-            players: players
+            players: players, 
+            counter:room?.counter
         };
 
         console.log('NEW GAME STATE', gameState)
@@ -107,45 +126,19 @@ class SocketService {
         socket.emit("Start Game", roomId);
     }
 
-    private handleNewGameState(socket: Socket, io: Server, data: any, roomId: string) {
-        if(data.discardCard.value === '+2'){
-            let whoseTurn = data.players[data.whoseTurn]
-            let havingPLus2 = false
-            for(let i = 0; i < whoseTurn.deck.length; i++){
-                if(whoseTurn.deck[i].value === '+2'){
-                    havingPLus2 = true
-                    break
-                }
-            }
-            if(!havingPLus2){
-                let addCard = randomDeckGen(2)
-                data.players[data.whoseTurn].deck.push(addCard[0])
-                data.players[data.whoseTurn].deck.push(addCard[1])
-            }
-
+    private handleNewGameState(socket: Socket, io: Server, gameState: GameState, roomId: string) {
+        if(gameState.discardCard.value === '+2'){
+            gameState.counter = gameState.counter + 2
         }
-        if(data.discardCard.value === '+4'){
-            let whoseTurn = data.players[data.whoseTurn]
-            let havingPLus4 = false
-            for(let i = 0; i < whoseTurn.deck.length; i++){
-                if(whoseTurn.deck[i].value === '+4'){
-                    havingPLus4 = true
-                    break
-                }
-            }
-            if(!havingPLus4){
-                let addCard = randomDeckGen(4)
-                data.players[data.whoseTurn].deck.push(addCard[0])
-                data.players[data.whoseTurn].deck.push(addCard[1])
-                data.players[data.whoseTurn].deck.push(addCard[2])
-                data.players[data.whoseTurn].deck.push(addCard[3])
-            }
-
+        if(gameState.discardCard.value === '+4'){
+            gameState.counter = gameState.counter + 4
         }
 
-        console.log("New game state:", data, roomId);
-        io.in(roomId).emit("new game state", data);
-        socket.emit("new game state", data);
+        console.log("New game state:", gameState, roomId);
+        io.in(roomId).emit("new game state", gameState);
+        socket.emit("new game state", gameState);
+
+        
     }
 
     private async handleDisconnect(socket: Socket) {
@@ -180,6 +173,11 @@ class SocketService {
         }
     }
 
+    private async handleForNoPlus2(socket: Socket, io: Server, gameState: GameState, playerEmail: string) {
+        const counter = gameState.counter
+        let player = gameState.players
+    }
+
     public initListeners() {
         const io = this._io;
         console.log("Init Socket listeners...");
@@ -202,6 +200,10 @@ class SocketService {
             socket.on("new game state", (data, roomId) =>
                 this.handleNewGameState(socket, io, data, roomId)
             );
+
+            socket.on("+2 card not available", (gameState, playerEmail: string)=>{
+                this.handleForNoPlus2(socket, io, gameState, playerEmail)
+            })
 
             socket.on("disconnect", () =>
                 this.handleDisconnect(socket)

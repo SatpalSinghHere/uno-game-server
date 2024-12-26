@@ -6,7 +6,8 @@ const randomDeckGen = (length) => {
     const randomDeck = [];
     for (let i = 0; i < length; i++) {
         const index = Math.floor(Math.random() * cardObjects_1.cardList.length);
-        randomDeck.push(cardObjects_1.cardList[index]);
+        let card = Object.assign(Object.assign({}, cardObjects_1.cardList[index]), { id: crypto.randomUUID().replace(/-/g, '').slice(0, 10) });
+        randomDeck.push(card);
     }
     return randomDeck;
 };
