@@ -199,29 +199,31 @@ class SocketService {
     }
 
     private async handleForNoPlusCard(socket: Socket, io: Server, gameState: GameState, playerEmail: string) {
-        let counter = gameState?.counter
-        let extraCards = randomDeckGen(counter)
+        console.log('handling no plus card, game state ->', gameState)
+        if (gameState && playerEmail) {
+            let counter = gameState?.counter
+            let extraCards = randomDeckGen(counter)
 
-        gameState.counter = 0
-        if (gameState.clockwise) {
-            gameState.whoseTurn = (gameState.whoseTurn as number + 1) % gameState.players.length
+            gameState.counter = 0
+            if (gameState.clockwise) {
+                gameState.whoseTurn = (gameState.whoseTurn as number + 1) % gameState.players.length
+            }
+            else {
+                gameState.whoseTurn = (gameState.whoseTurn as number - 1 + gameState.players.length) % gameState.players.length
+            }
+
+            let player = gameState.players.find(player => player.email === playerEmail)
+            let deck = player?.deck
+            deck = deck?.concat(extraCards)
+
+            if (deck) {
+                gameState.players.find(player => player.email === playerEmail)!.deck = deck
+            }
+
+            console.log("New game state:", gameState,);
+            io.in(gameState.roomId).emit("new game state", gameState);
+            socket.emit("new game state", gameState);
         }
-        else {
-            gameState.whoseTurn = (gameState.whoseTurn as number - 1 + gameState.players.length) % gameState.players.length
-        }
-
-        let player = gameState.players.find(player => player.email === playerEmail)
-        let deck = player?.deck
-        deck = deck?.concat(extraCards)
-
-        if (deck) {
-            gameState.players.find(player => player.email === playerEmail)!.deck = deck 
-        }
-
-        console.log("New game state:", gameState,);
-        io.in(gameState.roomId).emit("new game state", gameState);
-        socket.emit("new game state", gameState);
-        
     }
 
     public initListeners() {

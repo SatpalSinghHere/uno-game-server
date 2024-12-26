@@ -180,24 +180,27 @@ class SocketService {
     }
     handleForNoPlusCard(socket, io, gameState, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
-            let counter = gameState === null || gameState === void 0 ? void 0 : gameState.counter;
-            let extraCards = (0, functions_1.randomDeckGen)(counter);
-            gameState.counter = 0;
-            if (gameState.clockwise) {
-                gameState.whoseTurn = (gameState.whoseTurn + 1) % gameState.players.length;
+            console.log('handling no plus card, game state ->', gameState);
+            if (gameState && playerEmail) {
+                let counter = gameState === null || gameState === void 0 ? void 0 : gameState.counter;
+                let extraCards = (0, functions_1.randomDeckGen)(counter);
+                gameState.counter = 0;
+                if (gameState.clockwise) {
+                    gameState.whoseTurn = (gameState.whoseTurn + 1) % gameState.players.length;
+                }
+                else {
+                    gameState.whoseTurn = (gameState.whoseTurn - 1 + gameState.players.length) % gameState.players.length;
+                }
+                let player = gameState.players.find(player => player.email === playerEmail);
+                let deck = player === null || player === void 0 ? void 0 : player.deck;
+                deck = deck === null || deck === void 0 ? void 0 : deck.concat(extraCards);
+                if (deck) {
+                    gameState.players.find(player => player.email === playerEmail).deck = deck;
+                }
+                console.log("New game state:", gameState);
+                io.in(gameState.roomId).emit("new game state", gameState);
+                socket.emit("new game state", gameState);
             }
-            else {
-                gameState.whoseTurn = (gameState.whoseTurn - 1 + gameState.players.length) % gameState.players.length;
-            }
-            let player = gameState.players.find(player => player.email === playerEmail);
-            let deck = player === null || player === void 0 ? void 0 : player.deck;
-            deck = deck === null || deck === void 0 ? void 0 : deck.concat(extraCards);
-            if (deck) {
-                gameState.players.find(player => player.email === playerEmail).deck = deck;
-            }
-            console.log("New game state:", gameState);
-            io.in(gameState.roomId).emit("new game state", gameState);
-            socket.emit("new game state", gameState);
         });
     }
     initListeners() {
