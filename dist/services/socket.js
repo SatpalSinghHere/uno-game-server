@@ -197,6 +197,7 @@ class SocketService {
                 if (deck) {
                     gameState.players.find(player => player.email === playerEmail).deck = deck;
                 }
+                gameState.discardCard = Object.assign(Object.assign({}, gameState.discardCard), { value: ' ' });
                 console.log("Extra cards New game state:", playerEmail, gameState);
                 io.in(gameState.roomId).emit("got extra cards", counter, player);
                 socket.emit("got extra cards", counter, player);
