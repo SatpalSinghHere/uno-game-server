@@ -197,7 +197,9 @@ class SocketService {
                 if (deck) {
                     gameState.players.find(player => player.email === playerEmail).deck = deck;
                 }
-                console.log("New game state:", gameState);
+                console.log("Extra cards New game state:", playerEmail, gameState);
+                io.in(gameState.roomId).emit("got extra cards", counter, player);
+                socket.emit("got extra cards", counter, player);
                 io.in(gameState.roomId).emit("new game state", gameState);
                 socket.emit("new game state", gameState);
             }
