@@ -11,6 +11,10 @@ interface GameState {
     whoseTurn: number,
     discardCard: Card,
     counter: number,
+    extraCards : {
+        playerEmail: string,
+        counter: number
+    } | null,
     players: Array<
         {
             roomId: string,
@@ -224,8 +228,12 @@ class SocketService {
 
             console.log("Extra cards New game state:", playerEmail, gameState );
 
-            io.in(gameState.roomId).emit("got extra cards", counter, player);
-            socket.emit("got extra cards", counter, player);
+            // io.in(gameState.roomId).emit("got extra cards", counter, player);
+            // socket.emit("got extra cards", counter, player);
+            gameState.extraCards = {
+                playerEmail: playerEmail,
+                counter: counter
+            }
             io.in(gameState.roomId).emit("new game state", gameState);
             socket.emit("new game state", gameState);
         }
