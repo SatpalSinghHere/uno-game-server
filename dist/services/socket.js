@@ -71,6 +71,20 @@ class SocketService {
             }
             const deck = (0, functions_1.randomDeckGen)(10);
             console.log('Player information:', playerName, playerEmail, deck);
+            let player = yield prisma.player.findUnique({
+                where: { email: playerEmail }
+            });
+            if (player) {
+                yield prisma.player.update({
+                    where: {
+                        email: playerEmail
+                    },
+                    data: {
+                        socketId: socket.id,
+                        online: true
+                    }
+                });
+            }
             try {
                 yield prisma.player.create({
                     data: {
@@ -119,28 +133,64 @@ class SocketService {
             if (gameState.discardCard.value === '+4') {
                 gameState.counter = gameState.counter + 4;
             }
-            console.log("New game state:", gameState, roomId);
-            io.in(roomId).emit("new game state", gameState);
-            socket.emit("new game state", gameState);
-            let newDeck = (_a = gameState.players.find(player => player.email === playerEmail)) === null || _a === void 0 ? void 0 : _a.deck;
-            if (newDeck) {
-                yield prisma.player.update({
-                    where: {
-                        email: playerEmail
-                    },
-                    data: {
-                        deck: newDeck
-                    }
-                });
-            }
             if (roomId) {
+                let players = yield prisma.player.findMany({
+                    where: { roomId: roomId }
+                });
+                let finalWhoseTurn;
+                if (players) {
+                    let room = yield prisma.room.findUnique({
+                        where: { id: roomId }
+                    });
+                    if (room) {
+                        let whoseTurnIndex = gameState.whoseTurn;
+                        console.log('WHOSE TURN : ', whoseTurnIndex);
+                        let player = players[whoseTurnIndex];
+                        let playerOnline = false;
+                        while (playerOnline == false) {
+                            if (player.online) {
+                                playerOnline = true;
+                            }
+                            else {
+                                if (gameState.clockwise) {
+                                    whoseTurnIndex = (whoseTurnIndex + 1) % players.length;
+                                    player = players[whoseTurnIndex];
+                                    console.log('NEXT WHOSE TURN : ', whoseTurnIndex);
+                                }
+                                else {
+                                    whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length;
+                                    player = players[whoseTurnIndex];
+                                    console.log('NEXT WHOSE TURN : ', whoseTurnIndex);
+                                }
+                                player = players[whoseTurnIndex];
+                            }
+                        }
+                        finalWhoseTurn = whoseTurnIndex;
+                        console.log('FINAL WHOSE TURN : ', finalWhoseTurn);
+                        gameState.whoseTurn = whoseTurnIndex;
+                    }
+                }
+                console.log("New game state:", gameState, roomId);
+                io.in(roomId).emit("new game state", gameState);
+                socket.emit("new game state", gameState);
+                let newDeck = (_a = gameState.players.find(player => player.email === playerEmail)) === null || _a === void 0 ? void 0 : _a.deck;
+                if (newDeck) {
+                    yield prisma.player.update({
+                        where: {
+                            email: playerEmail
+                        },
+                        data: {
+                            deck: newDeck
+                        }
+                    });
+                }
                 yield prisma.room.update({
                     where: {
                         id: roomId
                     },
                     data: {
                         clockwise: gameState.clockwise,
-                        whoseTurn: gameState.whoseTurn,
+                        whoseTurn: finalWhoseTurn,
                         discardCard: gameState.discardCard,
                         counter: gameState.counter
                     }
@@ -150,6 +200,7 @@ class SocketService {
     }
     handleDisconnect(socket) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             console.log("Disconnected:", socket.id);
             this.players = this.players.filter(player => player[1] !== socket.id);
             const player = yield prisma.player.findUnique({
@@ -158,13 +209,37 @@ class SocketService {
             try {
                 if (player) {
                     const roomId = player.roomId;
-                    yield prisma.player.delete({ where: { socketId: player.socketId } });
+                    yield prisma.player.update({
+                        where: {
+                            socketId: player.socketId
+                        },
+                        data: {
+                            online: false
+                        }
+                    });
                     const room = yield prisma.room.findUnique({
                         where: { id: roomId },
                         include: { players: true }
                     });
-                    if (room && room.players.length === 0) {
-                        yield prisma.room.delete({ where: { id: roomId } });
+                    let onlineCount = 0;
+                    if (room) {
+                        for (let i = 0; i < 4; i++) {
+                            if (((_a = room.players[i]) === null || _a === void 0 ? void 0 : _a.online) === true) {
+                                onlineCount++;
+                            }
+                        }
+                        if (onlineCount === 0) {
+                            yield prisma.player.deleteMany({
+                                where: {
+                                    roomId: roomId
+                                }
+                            });
+                            yield prisma.room.delete({
+                                where: {
+                                    id: roomId
+                                }
+                            });
+                        }
                     }
                 }
             }

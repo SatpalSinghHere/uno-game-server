@@ -88,6 +88,20 @@ class SocketService {
 
         const deck: Array<any> = randomDeckGen(10)
         console.log('Player information:', playerName, playerEmail, deck);
+        let player = await prisma.player.findUnique({
+            where: { email: playerEmail }
+        })
+        if(player){
+            await prisma.player.update({
+                where: {
+                    email: playerEmail
+                },
+                data: {
+                    socketId: socket.id,                    
+                    online: true
+                }
+            })
+        }
         try {
             await prisma.player.create({
                 data: {
@@ -150,19 +164,31 @@ class SocketService {
                     where: { id: roomId }
                 })
                 if (room) {
-                    let whoseTurnIndex = room.whoseTurn
+                    let whoseTurnIndex = gameState.whoseTurn
+                    console.log('WHOSE TURN : ', whoseTurnIndex)
                     let player = players[whoseTurnIndex]
                     let playerOnline = false
-                    while (!playerOnline) {
+                    while (playerOnline == false) {
                         if (player.online) {
                             playerOnline = true
                         }
                         else {
-                            whoseTurnIndex = (whoseTurnIndex + 1) % players.length
+                            if (gameState.clockwise) {
+                                whoseTurnIndex = (whoseTurnIndex + 1) % players.length
+                                player = players[whoseTurnIndex]
+                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )
+                            }
+                            else {
+                                whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
+                                player = players[whoseTurnIndex]
+                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )
+                            }
+                            
                             player = players[whoseTurnIndex]
                         }
                     }
                     finalWhoseTurn = whoseTurnIndex
+                    console.log('FINAL WHOSE TURN : ', finalWhoseTurn)
                     gameState.whoseTurn = whoseTurnIndex
                 }
             }
