@@ -138,6 +138,7 @@ class SocketService {
             gameState.counter = gameState.counter + 4
         }
 
+
         console.log("New game state:", gameState, roomId);
         io.in(roomId).emit("new game state", gameState);
         socket.emit("new game state", gameState);
@@ -156,13 +157,40 @@ class SocketService {
         }
 
         if (roomId) {
+            let players = await prisma.player.findMany({
+                where: { roomId: roomId }
+            })
+
+            let finalWhoseTurn
+
+            if (players) {
+                let room = await prisma.room.findUnique({
+                    where: { id: roomId }
+                })
+                if (room) {
+                    let whoseTurnIndex = room.whoseTurn
+                    let player = players[whoseTurnIndex]
+                    let playerOnline = false
+                    while (!playerOnline) {
+                        if (player.online) {
+                            playerOnline = true
+                        }
+                        else {
+                            whoseTurnIndex = (whoseTurnIndex + 1) % players.length
+                            player = players[whoseTurnIndex]
+                        }
+                    }
+                    finalWhoseTurn = whoseTurnIndex
+                }
+            }
+
             await prisma.room.update({
                 where: {
                     id: roomId
                 },
                 data: {
                     clockwise: gameState.clockwise,
-                    whoseTurn: gameState.whoseTurn,
+                    whoseTurn: finalWhoseTurn,
                     discardCard: gameState.discardCard as any,
                     counter: gameState.counter
                 }
@@ -200,7 +228,7 @@ class SocketService {
                             onlineCount++
                         }
                     }
-                    if(onlineCount === 0){
+                    if (onlineCount === 0) {
                         await prisma.player.deleteMany({
                             where: {
                                 roomId: roomId
