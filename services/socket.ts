@@ -138,24 +138,6 @@ class SocketService {
             gameState.counter = gameState.counter + 4
         }
 
-
-        console.log("New game state:", gameState, roomId);
-        io.in(roomId).emit("new game state", gameState);
-        socket.emit("new game state", gameState);
-
-        let newDeck: Array<any> | undefined = gameState.players.find(player => player.email === playerEmail)?.deck
-
-        if (newDeck) {
-            await prisma.player.update({
-                where: {
-                    email: playerEmail
-                },
-                data: {
-                    deck: newDeck
-                }
-            })
-        }
-
         if (roomId) {
             let players = await prisma.player.findMany({
                 where: { roomId: roomId }
@@ -181,8 +163,28 @@ class SocketService {
                         }
                     }
                     finalWhoseTurn = whoseTurnIndex
+                    gameState.whoseTurn = whoseTurnIndex
                 }
             }
+
+            console.log("New game state:", gameState, roomId);
+            io.in(roomId).emit("new game state", gameState);
+            socket.emit("new game state", gameState);
+
+            let newDeck: Array<any> | undefined = gameState.players.find(player => player.email === playerEmail)?.deck
+
+            if (newDeck) {
+                await prisma.player.update({
+                    where: {
+                        email: playerEmail
+                    },
+                    data: {
+                        deck: newDeck
+                    }
+                })
+            }
+
+
 
             await prisma.room.update({
                 where: {
