@@ -31,4 +31,5 @@ model Player {
   email       String    @unique
   deck        Json
   room        Room?      @relation("RoomPlayers", fields: [roomId], references: [id])
+  online      Boolean   @default(true)
 }

@@ -11,7 +11,7 @@ interface GameState {
     whoseTurn: number,
     discardCard: Card,
     counter: number,
-    extraCards : {
+    extraCards: {
         playerEmail: string,
         counter: number
     } | null,
@@ -180,15 +180,38 @@ class SocketService {
         try {
             if (player) {
                 const roomId = player.roomId;
-                await prisma.player.delete({ where: { socketId: player.socketId } });
+                await prisma.player.update({
+                    where: {
+                        socketId: player.socketId
+                    },
+                    data: {
+                        online: false
+                    }
+                });
 
                 const room = await prisma.room.findUnique({
                     where: { id: roomId },
                     include: { players: true }
                 });
-
-                if (room && room.players.length === 0) {
-                    await prisma.room.delete({ where: { id: roomId } });
+                let onlineCount = 0
+                if (room) {
+                    for (let i = 0; i < 4; i++) {
+                        if (room.players[i]?.online === true) {
+                            onlineCount++
+                        }
+                    }
+                    if(onlineCount === 0){
+                        await prisma.player.deleteMany({
+                            where: {
+                                roomId: roomId
+                            }
+                        })
+                        await prisma.room.delete({
+                            where: {
+                                id: roomId
+                            }
+                        })
+                    }
                 }
             }
         }
@@ -224,9 +247,9 @@ class SocketService {
                 gameState.players.find(player => player.email === playerEmail)!.deck = deck
             }
 
-            gameState.discardCard = {...gameState.discardCard, value: ' '}
+            gameState.discardCard = { ...gameState.discardCard, value: ' ' }
 
-            console.log("Extra cards New game state:", playerEmail, gameState );
+            console.log("Extra cards New game state:", playerEmail, gameState);
 
             // io.in(gameState.roomId).emit("got extra cards", counter, player);
             // socket.emit("got extra cards", counter, player);
