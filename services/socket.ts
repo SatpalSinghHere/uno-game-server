@@ -318,12 +318,22 @@ class SocketService {
         }
     }
 
+    private async handleMessage(socket: Socket, io: Server, msg: string, roomId: string) {
+        console.log('Broadcasting message', msg)
+        io.in(roomId).emit("message", msg);
+        socket.emit("message", msg);
+    }
+
     public initListeners() {
         const io = this._io;
         console.log("Init Socket listeners...");
 
         io.on("connect", (socket) => {
             console.log("New connection:", socket.id);
+
+            socket.on('message', (msg: string, roomId: string) =>
+                this.handleMessage(socket, io, msg, roomId)
+            );
 
             socket.on('coming to waiting room', (username: string, roomId: string) =>
                 this.handleWaitingRoom(socket, io, username, roomId)

@@ -285,11 +285,19 @@ class SocketService {
             }
         });
     }
+    handleMessage(socket, io, msg, roomId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log('Broadcasting message', msg);
+            io.in(roomId).emit("message", msg);
+            socket.emit("message", msg);
+        });
+    }
     initListeners() {
         const io = this._io;
         console.log("Init Socket listeners...");
         io.on("connect", (socket) => {
             console.log("New connection:", socket.id);
+            socket.on('message', (msg, roomId) => this.handleMessage(socket, io, msg, roomId));
             socket.on('coming to waiting room', (username, roomId) => this.handleWaitingRoom(socket, io, username, roomId));
             socket.on('join room', (roomId, playerName, playerEmail, deck) => //remove deck parameter
              __awaiter(this, void 0, void 0, function* () { //remove deck parameter
