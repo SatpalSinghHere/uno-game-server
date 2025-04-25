@@ -289,7 +289,6 @@ class SocketService {
         return __awaiter(this, void 0, void 0, function* () {
             console.log('Broadcasting message', msg);
             io.in(roomId).emit("message", msg);
-            socket.emit("message", msg);
         });
     }
     initListeners() {

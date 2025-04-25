@@ -321,7 +321,6 @@ class SocketService {
     private async handleMessage(socket: Socket, io: Server, msg: string, roomId: string) {
         console.log('Broadcasting message', msg)
         io.in(roomId).emit("message", msg);
-        socket.emit("message", msg);
     }
 
     public initListeners() {
