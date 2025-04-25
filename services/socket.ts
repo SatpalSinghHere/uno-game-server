@@ -141,7 +141,7 @@ class SocketService {
 
     private handleStartGame(socket: Socket, io: Server, roomId: string) {
         io.in(roomId).emit("Start Game", roomId);
-        socket.emit("Start Game", roomId);
+        // socket.emit("Start Game", roomId);
     }
 
     private async handleNewGameState(socket: Socket, io: Server, gameState: GameState, roomId: string, playerEmail: string) {
@@ -318,9 +318,9 @@ class SocketService {
         }
     }
 
-    private async handleMessage(socket: Socket, io: Server, msg: string, roomId: string) {
+    private async handleMessage(socket: Socket, io: Server, name: string, msg: string, roomId: string) {
         console.log('Broadcasting message', msg)
-        io.in(roomId).emit("message", msg);
+        io.in(roomId).emit("message", [name,msg]);
     }
 
     public initListeners() {
@@ -330,8 +330,8 @@ class SocketService {
         io.on("connect", (socket) => {
             console.log("New connection:", socket.id);
 
-            socket.on('message', (msg: string, roomId: string) =>
-                this.handleMessage(socket, io, msg, roomId)
+            socket.on('message', (name: string, msg: string, roomId: string) =>
+                this.handleMessage(socket, io, name, msg, roomId)
             );
 
             socket.on('coming to waiting room', (username: string, roomId: string) =>

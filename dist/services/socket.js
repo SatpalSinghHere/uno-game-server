@@ -122,7 +122,7 @@ class SocketService {
     }
     handleStartGame(socket, io, roomId) {
         io.in(roomId).emit("Start Game", roomId);
-        socket.emit("Start Game", roomId);
+        // socket.emit("Start Game", roomId);
     }
     handleNewGameState(socket, io, gameState, roomId, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -285,10 +285,10 @@ class SocketService {
             }
         });
     }
-    handleMessage(socket, io, msg, roomId) {
+    handleMessage(socket, io, name, msg, roomId) {
         return __awaiter(this, void 0, void 0, function* () {
             console.log('Broadcasting message', msg);
-            io.in(roomId).emit("message", msg);
+            io.in(roomId).emit("message", [name, msg]);
         });
     }
     initListeners() {
@@ -296,7 +296,7 @@ class SocketService {
         console.log("Init Socket listeners...");
         io.on("connect", (socket) => {
             console.log("New connection:", socket.id);
-            socket.on('message', (msg, roomId) => this.handleMessage(socket, io, msg, roomId));
+            socket.on('message', (name, msg, roomId) => this.handleMessage(socket, io, name, msg, roomId));
             socket.on('coming to waiting room', (username, roomId) => this.handleWaitingRoom(socket, io, username, roomId));
             socket.on('join room', (roomId, playerName, playerEmail, deck) => //remove deck parameter
              __awaiter(this, void 0, void 0, function* () { //remove deck parameter
