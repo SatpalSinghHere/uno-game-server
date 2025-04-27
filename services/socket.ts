@@ -154,7 +154,7 @@ class SocketService {
 
         if (roomId) {
             let players = await prisma.player.findMany({
-                where: { roomId: roomId }
+                where: { roomId: roomId }                         // get all the players
             })
 
             let finalWhoseTurn
@@ -166,7 +166,7 @@ class SocketService {
                 if (room) {
                     let whoseTurnIndex = gameState.whoseTurn
                     console.log('WHOSE TURN : ', whoseTurnIndex)
-                    let player = players[whoseTurnIndex]
+                    let player = players[whoseTurnIndex]               // this player played this move
                     let playerOnline = false
                     while (playerOnline == false) {
                         if (player.online) {
@@ -175,8 +175,8 @@ class SocketService {
                         else {
                             if (gameState.clockwise) {
                                 whoseTurnIndex = (whoseTurnIndex + 1) % players.length
-                                player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )
+                                player = players[whoseTurnIndex]                            
+                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )     
                             }
                             else {
                                 whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
@@ -184,7 +184,7 @@ class SocketService {
                                 console.log('NEXT WHOSE TURN : ',whoseTurnIndex )
                             }
                             
-                            player = players[whoseTurnIndex]
+                            player = players[whoseTurnIndex]           //player = who will play next
                         }
                     }
                     finalWhoseTurn = whoseTurnIndex
@@ -194,7 +194,7 @@ class SocketService {
             }
 
             console.log("New game state:", gameState, roomId);
-            io.in(roomId).emit("new game state", gameState);
+            io.in(roomId).emit("new game state", gameState);           // broadcasting new game state
             socket.emit("new game state", gameState);
 
             let newDeck: Array<any> | undefined = gameState.players.find(player => player.email === playerEmail)?.deck
@@ -203,7 +203,7 @@ class SocketService {
                 await prisma.player.update({
                     where: {
                         email: playerEmail
-                    },
+                    },                                // updating current deck data in database
                     data: {
                         deck: newDeck
                     }
@@ -231,7 +231,7 @@ class SocketService {
         this.players = this.players.filter(player => player[1] !== socket.id);
 
         const player = await prisma.player.findUnique({
-            where: { socketId: socket.id }
+            where: { socketId: socket.id }                         // finding player who got disconnected
         });
         try {
             if (player) {
@@ -241,7 +241,7 @@ class SocketService {
                         socketId: player.socketId
                     },
                     data: {
-                        online: false
+                        online: false                    // updating that player is offline in database
                     }
                 });
 
@@ -253,13 +253,13 @@ class SocketService {
                 if (room) {
                     for (let i = 0; i < 4; i++) {
                         if (room.players[i]?.online === true) {
-                            onlineCount++
+                            onlineCount++                           // counting how many players are online
                         }
                     }
                     if (onlineCount === 0) {
                         await prisma.player.deleteMany({
                             where: {
-                                roomId: roomId
+                                roomId: roomId                  // if all are offline, delete the room details from database
                             }
                         })
                         await prisma.room.delete({
