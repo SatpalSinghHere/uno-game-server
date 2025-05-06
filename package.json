@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/main.js",
-    "build": "tsc -p",
+    "build": "tsc",
     "dev": " tsc-watch --onSuccess \"node dist/index.js\""
   },
   "keywords": [],
