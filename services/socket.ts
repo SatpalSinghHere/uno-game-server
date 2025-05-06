@@ -44,18 +44,21 @@ class SocketService {
     }
 
     private handleWaitingRoom(socket: Socket, io: Server, username: string, roomId: string) {
+
         if (!this.players.some(player => player[0] === roomId && player[1] === socket.id && player[2] === username)) {
             this.players.push([roomId, socket.id, username]);
             console.log(socket.id, 'Joined Room:', roomId);
             socket.join(roomId);
             console.log('New player waiting');
-            io.in(roomId).emit('players waiting', this.players);
-            socket.emit('players waiting', this.players);
+            const thisRoomPlayers = this.players.filter((player) => player[0] == roomId)
+            io.in(roomId).emit('players waiting', thisRoomPlayers);
+            socket.emit('players waiting', thisRoomPlayers);
         }
+
     }
 
     private async handleJoinRoom(socket: Socket, io: Server, roomId: string, playerName: string, playerEmail: string) {
-        if ((socket.rooms.size === 1)) {
+        if ((socket.rooms.size >= 1)) {
             console.log("Joined room:", roomId);
             socket.join(roomId)
         }
@@ -91,13 +94,13 @@ class SocketService {
         let player = await prisma.player.findUnique({
             where: { email: playerEmail }
         })
-        if(player){
+        if (player) {
             await prisma.player.update({
                 where: {
                     email: playerEmail
                 },
                 data: {
-                    socketId: socket.id,                    
+                    socketId: socket.id,
                     online: true
                 }
             })
@@ -175,15 +178,15 @@ class SocketService {
                         else {
                             if (gameState.clockwise) {
                                 whoseTurnIndex = (whoseTurnIndex + 1) % players.length
-                                player = players[whoseTurnIndex]                            
-                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )     
+                                player = players[whoseTurnIndex]
+                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex)
                             }
                             else {
                                 whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
                                 player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ',whoseTurnIndex )
+                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex)
                             }
-                            
+
                             player = players[whoseTurnIndex]           //player = who will play next
                         }
                     }
@@ -320,7 +323,7 @@ class SocketService {
 
     private async handleMessage(socket: Socket, io: Server, name: string, msg: string, roomId: string) {
         console.log('Broadcasting message', msg)
-        io.in(roomId).emit("message", [name,msg]);
+        io.in(roomId).emit("message", [name, msg]);
     }
 
     public initListeners() {

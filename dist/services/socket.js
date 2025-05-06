@@ -38,7 +38,7 @@ class SocketService {
     }
     handleJoinRoom(socket, io, roomId, playerName, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
-            if ((socket.rooms.size === 1)) {
+            if ((socket.rooms.size >= 1)) {
                 console.log("Joined room:", roomId);
                 socket.join(roomId);
             }
@@ -135,7 +135,7 @@ class SocketService {
             }
             if (roomId) {
                 let players = yield prisma.player.findMany({
-                    where: { roomId: roomId }
+                    where: { roomId: roomId } // get all the players
                 });
                 let finalWhoseTurn;
                 if (players) {
@@ -145,7 +145,7 @@ class SocketService {
                     if (room) {
                         let whoseTurnIndex = gameState.whoseTurn;
                         console.log('WHOSE TURN : ', whoseTurnIndex);
-                        let player = players[whoseTurnIndex];
+                        let player = players[whoseTurnIndex]; // this player played this move
                         let playerOnline = false;
                         while (playerOnline == false) {
                             if (player.online) {
@@ -162,7 +162,7 @@ class SocketService {
                                     player = players[whoseTurnIndex];
                                     console.log('NEXT WHOSE TURN : ', whoseTurnIndex);
                                 }
-                                player = players[whoseTurnIndex];
+                                player = players[whoseTurnIndex]; //player = who will play next
                             }
                         }
                         finalWhoseTurn = whoseTurnIndex;
@@ -171,14 +171,14 @@ class SocketService {
                     }
                 }
                 console.log("New game state:", gameState, roomId);
-                io.in(roomId).emit("new game state", gameState);
+                io.in(roomId).emit("new game state", gameState); // broadcasting new game state
                 socket.emit("new game state", gameState);
                 let newDeck = (_a = gameState.players.find(player => player.email === playerEmail)) === null || _a === void 0 ? void 0 : _a.deck;
                 if (newDeck) {
                     yield prisma.player.update({
                         where: {
                             email: playerEmail
-                        },
+                        }, // updating current deck data in database
                         data: {
                             deck: newDeck
                         }
@@ -204,7 +204,7 @@ class SocketService {
             console.log("Disconnected:", socket.id);
             this.players = this.players.filter(player => player[1] !== socket.id);
             const player = yield prisma.player.findUnique({
-                where: { socketId: socket.id }
+                where: { socketId: socket.id } // finding player who got disconnected
             });
             try {
                 if (player) {
@@ -214,7 +214,7 @@ class SocketService {
                             socketId: player.socketId
                         },
                         data: {
-                            online: false
+                            online: false // updating that player is offline in database
                         }
                     });
                     const room = yield prisma.room.findUnique({
@@ -225,13 +225,13 @@ class SocketService {
                     if (room) {
                         for (let i = 0; i < 4; i++) {
                             if (((_a = room.players[i]) === null || _a === void 0 ? void 0 : _a.online) === true) {
-                                onlineCount++;
+                                onlineCount++; // counting how many players are online
                             }
                         }
                         if (onlineCount === 0) {
                             yield prisma.player.deleteMany({
                                 where: {
-                                    roomId: roomId
+                                    roomId: roomId // if all are offline, delete the room details from database
                                 }
                             });
                             yield prisma.room.delete({

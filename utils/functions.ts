@@ -1,4 +1,5 @@
 import { cardList } from "./cardObjects"
+import crypto from "crypto"
 
 export const randomDeckGen = (length: number) => {
     const randomDeck = []
