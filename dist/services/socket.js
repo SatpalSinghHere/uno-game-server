@@ -32,8 +32,9 @@ class SocketService {
             console.log(socket.id, 'Joined Room:', roomId);
             socket.join(roomId);
             console.log('New player waiting');
-            io.in(roomId).emit('players waiting', this.players);
-            socket.emit('players waiting', this.players);
+            const thisRoomPlayers = this.players.filter((player) => player[0] == roomId);
+            io.in(roomId).emit('players waiting', thisRoomPlayers);
+            socket.emit('players waiting', thisRoomPlayers);
         }
     }
     handleJoinRoom(socket, io, roomId, playerName, playerEmail) {

@@ -1,11 +1,11 @@
 {
   "name": "uno-game-server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "start": "node dist/main.js",
     "build": "tsc",
-    "dev": " tsc-watch --onSuccess \"node dist/index.js\""
+    "dev": "tsc-watch --onSuccess \"node dist/index.js\""
   },
   "keywords": [],
   "author": "",
