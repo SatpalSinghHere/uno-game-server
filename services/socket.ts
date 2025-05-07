@@ -323,7 +323,7 @@ class SocketService {
 
     private async handleMessage(socket: Socket, io: Server, name: string, msg: string, roomId: string) {
         console.log('Broadcasting message', msg)
-        io.in(roomId).emit("message", [name, msg]);
+        io.in(roomId).emit("message", name, msg);
     }
 
     public initListeners() {
