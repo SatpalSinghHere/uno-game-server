@@ -25,10 +25,12 @@ model Room {
 }
 
 model Player {  
+  id          Int       @id @default(autoincrement())
+  index       Int        
   roomId      String    
   playerName  String
-  socketId    String    @unique @id
-  email       String    @unique
+  socketId    String    @unique 
+  email       String    @unique 
   deck        Json
   room        Room?      @relation("RoomPlayers", fields: [roomId], references: [id])
   online      Boolean   @default(true)

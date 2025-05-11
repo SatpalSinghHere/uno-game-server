@@ -30,6 +30,7 @@ class SocketService {
     private _io: Server;
     private players: Array<string[]>;
     private turnOrder;
+    private timers: { [roomId: string]: NodeJS.Timeout };
 
     constructor() {
         this._io = new Server({
@@ -41,6 +42,52 @@ class SocketService {
 
         this.players = [];
         this.turnOrder = <number[]>[];
+        this.timers = {}
+    }
+
+    private launchTimer(roomId: string) {
+        let seconds = 10;
+
+        // If there's already a timer for this room, stop it first
+        if (this.timers[roomId]) {
+            clearInterval(this.timers[roomId]);
+        }
+
+        const intervalId = setInterval(async () => {
+            if (seconds === 0) {
+
+                const room = await prisma.room.findUnique({
+                    where: { id: roomId },
+                    include: {
+                        players: {
+                            orderBy: {
+                                index: 'asc', // or 'desc' for descending
+                            },
+                        },
+                    },
+                });
+                if (room) {
+                    const whoseTurn = room.players[room.whoseTurn]
+                    if (whoseTurn) {
+                        const socketId = whoseTurn.socketId
+                        console.log('Timeout', whoseTurn.email);
+                        this.io.to(socketId).emit("time is up")
+                    }
+                }
+                seconds = 10;
+            }
+            seconds--;
+        }, 1000);
+
+        this.timers[roomId] = intervalId;  // Save the timer
+    }
+
+    private stopTimer(roomId: string) {
+        if (this.timers[roomId]) {
+            clearInterval(this.timers[roomId]);
+            delete this.timers[roomId];
+            console.log(`Timer for ${roomId} stopped`);
+        }
     }
 
     private handleWaitingRoom(socket: Socket, io: Server, username: string, roomId: string) {
@@ -69,7 +116,7 @@ class SocketService {
                 data: {
                     id: roomId,
                     clockwise: true,
-                    whoseTurn: 0,
+                    whoseTurn: 1,
                     counter: 0,
                     discardCard: { color: cardList[12].color, value: '7' },
                 },
@@ -82,7 +129,13 @@ class SocketService {
                 console.log('DUPLICATE ROOM ENTRY');
                 room = await prisma.room.findUnique({
                     where: { id: roomId },
-                    include: { players: true }
+                    include: {
+                        players: {
+                            orderBy: {
+                                index: 'asc', // or 'desc' for descending
+                            },
+                        },
+                    },
                 });
             } else {
                 throw error;
@@ -106,13 +159,18 @@ class SocketService {
             })
         }
         try {
+            const playersInRoom = await prisma.player.findMany({
+                where: { roomId },
+            });
+
             await prisma.player.create({
                 data: {
-                    playerName: playerName,
-                    email: playerEmail,
-                    roomId: roomId,
                     socketId: socket.id,
-                    deck: deck,
+                    email: playerEmail,
+                    playerName,
+                    deck,
+                    roomId,
+                    index: playersInRoom.length, // Starts from 0
                 },
             });
         } catch (error: any) {
@@ -124,7 +182,8 @@ class SocketService {
         }
 
         const players = await prisma.player.findMany({
-            where: { roomId: roomId }
+            where: { roomId: roomId },
+            orderBy: { index: 'asc' }
         })
 
         const gameState = {
@@ -136,7 +195,9 @@ class SocketService {
             counter: room?.counter
         };
 
-        console.log('NEW GAME STATE', gameState)
+        console.log('NEW GAME STATE WHOSE TURN', gameState.whoseTurn)
+
+        this.launchTimer(roomId)  //launching Timer
 
         io.in(roomId).emit('new game state', gameState);
         socket.emit('new game state', gameState);
@@ -157,18 +218,26 @@ class SocketService {
 
         if (roomId) {
             let players = await prisma.player.findMany({
-                where: { roomId: roomId }                         // get all the players
+                where: { roomId: roomId },
+                orderBy: { index: 'asc' }                        // get all the players
             })
 
             let finalWhoseTurn
 
             if (players) {
                 let room = await prisma.room.findUnique({
-                    where: { id: roomId }
-                })
+                    where: { id: roomId },
+                    include: {
+                        players: {
+                            orderBy: {
+                                index: 'asc', // or 'desc' for descending
+                            },
+                        },
+                    },
+                });
                 if (room) {
                     let whoseTurnIndex = gameState.whoseTurn
-                    console.log('WHOSE TURN : ', whoseTurnIndex)
+                    console.log('PREVIOUS TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
                     let player = players[whoseTurnIndex]               // this player played this move
                     let playerOnline = false
                     while (playerOnline == false) {
@@ -179,12 +248,12 @@ class SocketService {
                             if (gameState.clockwise) {
                                 whoseTurnIndex = (whoseTurnIndex + 1) % players.length
                                 player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex)
+                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
                             }
                             else {
                                 whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
                                 player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex)
+                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
                             }
 
                             player = players[whoseTurnIndex]           //player = who will play next
@@ -196,9 +265,11 @@ class SocketService {
                 }
             }
 
-            console.log("New game state:", gameState, roomId);
+            // console.log("New game state:", gameState, roomId);
             io.in(roomId).emit("new game state", gameState);           // broadcasting new game state
             socket.emit("new game state", gameState);
+
+            this.launchTimer(roomId)  // restarting the timer for this roomId
 
             let newDeck: Array<any> | undefined = gameState.players.find(player => player.email === playerEmail)?.deck
 
@@ -223,9 +294,22 @@ class SocketService {
                     clockwise: gameState.clockwise,
                     whoseTurn: finalWhoseTurn,
                     discardCard: gameState.discardCard as any,
-                    counter: gameState.counter
+                    counter: gameState.counter,
                 }
             })
+
+            const playersData = gameState.players
+            for (let i = 0; i < gameState.players.length; i++) {
+                await prisma.player.update({
+                    where: {
+                        email: gameState.players[i].email as string
+                    },
+                    data: {
+                        deck: gameState.players[i].deck
+                    }
+                })
+            }
+
         }
     }
 
@@ -250,7 +334,13 @@ class SocketService {
 
                 const room = await prisma.room.findUnique({
                     where: { id: roomId },
-                    include: { players: true }
+                    include: {
+                        players: {
+                            orderBy: {
+                                index: 'asc', // or 'desc' for descending
+                            },
+                        },
+                    },
                 });
                 let onlineCount = 0
                 if (room) {
@@ -260,6 +350,7 @@ class SocketService {
                         }
                     }
                     if (onlineCount === 0) {
+                        this.stopTimer(roomId)
                         await prisma.player.deleteMany({
                             where: {
                                 roomId: roomId                  // if all are offline, delete the room details from database
