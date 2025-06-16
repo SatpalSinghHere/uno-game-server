@@ -1,9 +1,13 @@
 import { Server, Socket } from "socket.io";
 import { Card, cardList } from "../utils/cardObjects";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { randomDeckGen } from "../utils/functions";
 
 const prisma = new PrismaClient();
+
+type RoomWithPlayers = Prisma.RoomGetPayload<{
+  include: { players: true }
+}>
 
 interface GameState {
     roomId: string,
@@ -349,7 +353,7 @@ class SocketService {
                             },
                         },
                     },
-                });
+                }) as RoomWithPlayers;
                 let onlineCount = 0
                 if (room) {
 
@@ -372,7 +376,7 @@ class SocketService {
                         })
                         return
                     }
-                    const fixedPlayers = room.players.map(p => ({
+                    const fixedPlayers = room.players.map((p:any) => ({
                         roomId: p.roomId,
                         playerName: p.playerName,
                         socketId: p.socketId,
