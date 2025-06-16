@@ -209,6 +209,7 @@ class SocketService {
     }
 
     private async handleNewGameState(socket: Socket, io: Server, gameState: GameState, roomId: string, playerEmail: string) {
+        console.log('receiving new gameState')
         if (gameState.discardCard.value === '+2') {
             gameState.counter = gameState.counter + 2
         }
@@ -240,23 +241,30 @@ class SocketService {
                     console.log('PREVIOUS TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
                     let player = players[whoseTurnIndex]               // this player played this move
                     let playerOnline = false
-                    while (playerOnline == false) {
-                        if (player.online) {
-                            playerOnline = true
-                        }
-                        else {
-                            if (gameState.clockwise) {
-                                whoseTurnIndex = (whoseTurnIndex + 1) % players.length
-                                player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
+                    const onlinePlayers = players.filter(p => p.online)
+                    if (onlinePlayers.length == 2 && (gameState.discardCard.value == 'S' || gameState.discardCard.value == 'R')) {
+                        whoseTurnIndex = whoseTurnIndex
+                    }
+                    else {
+                        while (playerOnline == false) {
+                            if (player.online) {
+                                playerOnline = true
                             }
                             else {
-                                whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
-                                player = players[whoseTurnIndex]
-                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
-                            }
+                                if (gameState.clockwise) {
+                                    whoseTurnIndex = (whoseTurnIndex + 1) % players.length
+                                    player = players[whoseTurnIndex]
 
-                            player = players[whoseTurnIndex]           //player = who will play next
+                                }
+                                else {
+                                    whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length
+                                    player = players[whoseTurnIndex]
+
+                                }
+                                console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email)
+
+                                player = players[whoseTurnIndex]           //player = who will play next
+                            }
                         }
                     }
                     finalWhoseTurn = whoseTurnIndex
@@ -313,7 +321,7 @@ class SocketService {
         }
     }
 
-    private async handleDisconnect(socket: Socket) {
+    private async handleDisconnect(socket: Socket, io: Server) {
         console.log("Disconnected:", socket.id);
         this.players = this.players.filter(player => player[1] !== socket.id);
 
@@ -344,6 +352,7 @@ class SocketService {
                 });
                 let onlineCount = 0
                 if (room) {
+
                     for (let i = 0; i < 4; i++) {
                         if (room.players[i]?.online === true) {
                             onlineCount++                           // counting how many players are online
@@ -361,10 +370,51 @@ class SocketService {
                                 id: roomId
                             }
                         })
+                        return
                     }
+                    const fixedPlayers = room.players.map(p => ({
+                        roomId: p.roomId,
+                        playerName: p.playerName,
+                        socketId: p.socketId,
+                        email: p.email,
+                        deck: p.deck as any[], // ✅ cast deck to array
+                    }));
+                    let whoseTurn = room.whoseTurn
+                    const gameState = {
+                        roomId: roomId,
+                        clockwise: room?.clockwise,
+                        whoseTurn: room?.whoseTurn,
+                        discardCard: room?.discardCard as unknown as Card,
+                        players: fixedPlayers,
+                        counter: room?.counter,
+                        extraCards: null,
+                    };
+                    if (player.email == room.players[whoseTurn].email) {
+                        if (room.counter > 0) {
+                            const extraCards = randomDeckGen(room.counter)
+                            let newDeck: any[] = Array.isArray(player.deck) ? [...player.deck] : [];
+                            newDeck = [...newDeck, ...extraCards]
+                            gameState.players[whoseTurn].deck = newDeck
+                            gameState.counter = 0
+                        }
+                        let nextWhoseTurn: number
+                        if (gameState.clockwise) {
+                            nextWhoseTurn = (gameState.whoseTurn as number + 1) % gameState.players.length
+                        }
+                        else {
+                            nextWhoseTurn = (gameState.whoseTurn as number - 1 + gameState.players.length) % gameState.players.length
+                        }
+                        gameState.whoseTurn = nextWhoseTurn
+
+                    }
+                    // io.in(roomId).emit("new game state", gameState);
+                    this.handleNewGameState(socket, io, gameState, gameState.roomId, player.email)
+
                 }
+
             }
         }
+
         catch (error: any) {
             if (error.code === 'P2025') {
                 console.log('Room already deleted');
@@ -407,14 +457,21 @@ class SocketService {
                 playerEmail: playerEmail,
                 counter: counter
             }
-            io.in(gameState.roomId).emit("new game state", gameState);
-            socket.emit("new game state", gameState);
+            // io.in(gameState.roomId).emit("new game state", gameState);
+            // socket.emit("new game state", gameState);
+            this.handleNewGameState(socket, io, gameState, gameState.roomId, playerEmail)
         }
     }
 
     private async handleMessage(socket: Socket, io: Server, name: string, msg: string, roomId: string) {
         console.log('Broadcasting message', msg)
         io.in(roomId).emit("message", name, msg);
+    }
+
+    private async handleToast(socket: Socket, io: Server, toast: string, roomId: string) {
+        console.log('Broadcasting toast', toast)
+        io.in(roomId).emit("new toast", toast);
+        socket.emit("new toast", toast)
     }
 
     public initListeners() {
@@ -432,7 +489,7 @@ class SocketService {
                 this.handleWaitingRoom(socket, io, username, roomId)
             );
 
-            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string, deck: Card[]) => //remove deck parameter
+            socket.on('join room', async (roomId: string, playerName: string, playerEmail: string) => //remove deck parameter
                 this.handleJoinRoom(socket, io, roomId, playerName, playerEmail)
             );
 
@@ -449,8 +506,12 @@ class SocketService {
             })
 
             socket.on("disconnect", () =>
-                this.handleDisconnect(socket)
+                this.handleDisconnect(socket, io)
             );
+
+            socket.on("new toast", (toast: string, roomId: string)=>{
+                this.handleToast(socket, io, toast, roomId)
+            })
         });
     }
 

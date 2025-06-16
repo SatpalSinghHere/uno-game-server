@@ -180,6 +180,7 @@ class SocketService {
     handleNewGameState(socket, io, gameState, roomId, playerEmail) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
+            console.log('receiving new gameState');
             if (gameState.discardCard.value === '+2') {
                 gameState.counter = gameState.counter + 2;
             }
@@ -208,22 +209,27 @@ class SocketService {
                         console.log('PREVIOUS TURN : ', whoseTurnIndex, players[whoseTurnIndex].email);
                         let player = players[whoseTurnIndex]; // this player played this move
                         let playerOnline = false;
-                        while (playerOnline == false) {
-                            if (player.online) {
-                                playerOnline = true;
-                            }
-                            else {
-                                if (gameState.clockwise) {
-                                    whoseTurnIndex = (whoseTurnIndex + 1) % players.length;
-                                    player = players[whoseTurnIndex];
-                                    console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email);
+                        const onlinePlayers = players.filter(p => p.online);
+                        if (onlinePlayers.length == 2 && (gameState.discardCard.value == 'S' || gameState.discardCard.value == 'R')) {
+                            whoseTurnIndex = whoseTurnIndex;
+                        }
+                        else {
+                            while (playerOnline == false) {
+                                if (player.online) {
+                                    playerOnline = true;
                                 }
                                 else {
-                                    whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length;
-                                    player = players[whoseTurnIndex];
+                                    if (gameState.clockwise) {
+                                        whoseTurnIndex = (whoseTurnIndex + 1) % players.length;
+                                        player = players[whoseTurnIndex];
+                                    }
+                                    else {
+                                        whoseTurnIndex = (whoseTurnIndex - 1 + players.length) % players.length;
+                                        player = players[whoseTurnIndex];
+                                    }
                                     console.log('NEXT WHOSE TURN : ', whoseTurnIndex, players[whoseTurnIndex].email);
+                                    player = players[whoseTurnIndex]; //player = who will play next
                                 }
-                                player = players[whoseTurnIndex]; //player = who will play next
                             }
                         }
                         finalWhoseTurn = whoseTurnIndex;
@@ -271,7 +277,7 @@ class SocketService {
             }
         });
     }
-    handleDisconnect(socket) {
+    handleDisconnect(socket, io) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             console.log("Disconnected:", socket.id);
@@ -319,7 +325,44 @@ class SocketService {
                                     id: roomId
                                 }
                             });
+                            return;
                         }
+                        const fixedPlayers = room.players.map(p => ({
+                            roomId: p.roomId,
+                            playerName: p.playerName,
+                            socketId: p.socketId,
+                            email: p.email,
+                            deck: p.deck, // ✅ cast deck to array
+                        }));
+                        let whoseTurn = room.whoseTurn;
+                        const gameState = {
+                            roomId: roomId,
+                            clockwise: room === null || room === void 0 ? void 0 : room.clockwise,
+                            whoseTurn: room === null || room === void 0 ? void 0 : room.whoseTurn,
+                            discardCard: room === null || room === void 0 ? void 0 : room.discardCard,
+                            players: fixedPlayers,
+                            counter: room === null || room === void 0 ? void 0 : room.counter,
+                            extraCards: null,
+                        };
+                        if (player.email == room.players[whoseTurn].email) {
+                            if (room.counter > 0) {
+                                const extraCards = (0, functions_1.randomDeckGen)(room.counter);
+                                let newDeck = Array.isArray(player.deck) ? [...player.deck] : [];
+                                newDeck = [...newDeck, ...extraCards];
+                                gameState.players[whoseTurn].deck = newDeck;
+                                gameState.counter = 0;
+                            }
+                            let nextWhoseTurn;
+                            if (gameState.clockwise) {
+                                nextWhoseTurn = (gameState.whoseTurn + 1) % gameState.players.length;
+                            }
+                            else {
+                                nextWhoseTurn = (gameState.whoseTurn - 1 + gameState.players.length) % gameState.players.length;
+                            }
+                            gameState.whoseTurn = nextWhoseTurn;
+                        }
+                        // io.in(roomId).emit("new game state", gameState);
+                        this.handleNewGameState(socket, io, gameState, gameState.roomId, player.email);
                     }
                 }
             }
@@ -360,8 +403,9 @@ class SocketService {
                     playerEmail: playerEmail,
                     counter: counter
                 };
-                io.in(gameState.roomId).emit("new game state", gameState);
-                socket.emit("new game state", gameState);
+                // io.in(gameState.roomId).emit("new game state", gameState);
+                // socket.emit("new game state", gameState);
+                this.handleNewGameState(socket, io, gameState, gameState.roomId, playerEmail);
             }
         });
     }
@@ -371,6 +415,13 @@ class SocketService {
             io.in(roomId).emit("message", name, msg);
         });
     }
+    handleToast(socket, io, toast, roomId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log('Broadcasting toast', toast);
+            io.in(roomId).emit("new toast", toast);
+            socket.emit("new toast", toast);
+        });
+    }
     initListeners() {
         const io = this._io;
         console.log("Init Socket listeners...");
@@ -378,7 +429,7 @@ class SocketService {
             console.log("New connection:", socket.id);
             socket.on('message', (name, msg, roomId) => this.handleMessage(socket, io, name, msg, roomId));
             socket.on('coming to waiting room', (username, roomId) => this.handleWaitingRoom(socket, io, username, roomId));
-            socket.on('join room', (roomId, playerName, playerEmail, deck) => //remove deck parameter
+            socket.on('join room', (roomId, playerName, playerEmail) => //remove deck parameter
              __awaiter(this, void 0, void 0, function* () { //remove deck parameter
             return this.handleJoinRoom(socket, io, roomId, playerName, playerEmail); }));
             socket.on("Start Game", (roomId) => this.handleStartGame(socket, io, roomId));
@@ -386,7 +437,10 @@ class SocketService {
             socket.on("+ card not available", (gameState, playerEmail) => {
                 this.handleForNoPlusCard(socket, io, gameState, playerEmail);
             });
-            socket.on("disconnect", () => this.handleDisconnect(socket));
+            socket.on("disconnect", () => this.handleDisconnect(socket, io));
+            socket.on("new toast", (toast, roomId) => {
+                this.handleToast(socket, io, toast, roomId);
+            });
         });
     }
     get io() {
