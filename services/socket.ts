@@ -45,50 +45,50 @@ class SocketService {
         this.timers = {}
     }
 
-    private launchTimer(roomId: string) {
-        let seconds = 10;
+    // private launchTimer(roomId: string) {
+    //     let seconds = 10;
 
-        // If there's already a timer for this room, stop it first
-        if (this.timers[roomId]) {
-            clearInterval(this.timers[roomId]);
-        }
+    //     // If there's already a timer for this room, stop it first
+    //     if (this.timers[roomId]) {
+    //         clearInterval(this.timers[roomId]);
+    //     }
 
-        const intervalId = setInterval(async () => {
-            if (seconds === 0) {
+    //     const intervalId = setInterval(async () => {
+    //         if (seconds === 0) {
 
-                const room = await prisma.room.findUnique({
-                    where: { id: roomId },
-                    include: {
-                        players: {
-                            orderBy: {
-                                index: 'asc', // or 'desc' for descending
-                            },
-                        },
-                    },
-                });
-                if (room) {
-                    const whoseTurn = room.players[room.whoseTurn]
-                    if (whoseTurn) {
-                        const socketId = whoseTurn.socketId
-                        console.log('Timeout', whoseTurn.email);
-                        this.io.to(socketId).emit("time is up")
-                    }
-                }
-                seconds = 10;
-            }
-            seconds--;
-        }, 1000);
+    //             const room = await prisma.room.findUnique({
+    //                 where: { id: roomId },
+    //                 include: {
+    //                     players: {
+    //                         orderBy: {
+    //                             index: 'asc', // or 'desc' for descending
+    //                         },
+    //                     },
+    //                 },
+    //             });
+    //             if (room) {
+    //                 const whoseTurn = room.players[room.whoseTurn]
+    //                 if (whoseTurn) {
+    //                     const socketId = whoseTurn.socketId
+    //                     console.log('Timeout', whoseTurn.email);
+    //                     this.io.to(socketId).emit("time is up")
+    //                 }
+    //             }
+    //             seconds = 10;
+    //         }
+    //         seconds--;
+    //     }, 1000);
 
-        this.timers[roomId] = intervalId;  // Save the timer
-    }
+    //     this.timers[roomId] = intervalId;  // Save the timer
+    // }
 
-    private stopTimer(roomId: string) {
-        if (this.timers[roomId]) {
-            clearInterval(this.timers[roomId]);
-            delete this.timers[roomId];
-            console.log(`Timer for ${roomId} stopped`);
-        }
-    }
+    // private stopTimer(roomId: string) {
+    //     if (this.timers[roomId]) {
+    //         clearInterval(this.timers[roomId]);
+    //         delete this.timers[roomId];
+    //         console.log(`Timer for ${roomId} stopped`);
+    //     }
+    // }
 
     private handleWaitingRoom(socket: Socket, io: Server, username: string, roomId: string) {
 
@@ -197,7 +197,7 @@ class SocketService {
 
         console.log('NEW GAME STATE WHOSE TURN', gameState.whoseTurn)
 
-        this.launchTimer(roomId)  //launching Timer
+        // this.launchTimer(roomId)  //launching Timer
 
         io.in(roomId).emit('new game state', gameState);
         socket.emit('new game state', gameState);
@@ -277,7 +277,7 @@ class SocketService {
             io.in(roomId).emit("new game state", gameState);           // broadcasting new game state
             socket.emit("new game state", gameState);
 
-            this.launchTimer(roomId)  // restarting the timer for this roomId
+            // this.launchTimer(roomId)  // restarting the timer for this roomId
 
             let newDeck: Array<any> | undefined = gameState.players.find(player => player.email === playerEmail)?.deck
 
@@ -359,7 +359,7 @@ class SocketService {
                         }
                     }
                     if (onlineCount === 0) {
-                        this.stopTimer(roomId)
+                        // this.stopTimer(roomId)
                         await prisma.player.deleteMany({
                             where: {
                                 roomId: roomId                  // if all are offline, delete the room details from database
